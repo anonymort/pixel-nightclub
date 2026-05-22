@@ -449,14 +449,18 @@ export class MapBuilder {
   _buildInteriorWalls() {
     const wallH = 5.0;
     const halfH = wallH / 2;
+    const wallJoin = 0.12; // overlap to prevent seam-light leaks at transition joints
 
     // 1. Exterior-to-Lobby Partition Wall (x = -4.8)
     // Left section (z: -15 to -2)
-    this._buildBox(0.8, wallH, 13, -4.8, halfH, -8.5, this.materials.lobbyWall);
+    this._buildBox(0.8, wallH, 13 + wallJoin * 2, -4.8, halfH, -8.5 - (wallJoin / 2), this.materials.lobbyWall);
     // Right section (z: 2 to 15)
-    this._buildBox(0.8, wallH, 13, -4.8, halfH, 8.5, this.materials.lobbyWall);
+    this._buildBox(0.8, wallH, 13 + wallJoin * 2, -4.8, halfH, 8.5 + (wallJoin / 2), this.materials.lobbyWall);
     // Entry lintel over double-door center opening (y: 3.5 to 5.0)
-    this._buildBox(0.8, 1.5, 4.0, -4.8, 4.25, 0, this.materials.lobbyWall);
+    this._buildBox(0.8, 1.5, 4.0 + wallJoin, -4.8, 4.25, 0, this.materials.lobbyWall);
+    // Tight closure caps where wall segments kiss the lintel (prevents visual seam gaps).
+    this._buildBox(0.8, wallH, 0.4, -4.8, halfH, -1.9 - (wallJoin / 2), this.materials.lobbyWall);
+    this._buildBox(0.8, wallH, 0.4, -4.8, halfH, 1.9 + (wallJoin / 2), this.materials.lobbyWall);
 
     // --- Premium Rustic Pergola & Support Columns Remodel ---
     // A. Rustic Oak Trellis Pergola (extending outward over double doors, from z = -2.5 to 2.5)
@@ -506,19 +510,28 @@ export class MapBuilder {
 
     // 2. Lobby-to-Dancefloor Partition Wall (x = 1.0)
     // Left section (z: -15 to -3)
-    this._buildBox(0.8, wallH, 12, 1.0, halfH, -9.0, this.materials.brickWall);
+    this._buildBox(0.8, wallH, 12 + wallJoin * 2, 1.0, halfH, -8.95 - (wallJoin / 2), this.materials.brickWall);
     // Right section (z: 3 to 15)
-    this._buildBox(0.8, wallH, 12, 1.0, halfH, 9.0, this.materials.brickWall);
+    this._buildBox(0.8, wallH, 12 + wallJoin * 2, 1.0, halfH, 9.05 + (wallJoin / 2), this.materials.brickWall);
     // Portal lintel (y: 3.5 to 5.0)
-    this._buildBox(0.8, 1.5, 6.0, 1.0, 4.25, 0, this.materials.brickWall);
+    this._buildBox(0.8, 1.5, 6.0 + wallJoin, 1.0, 4.25, 0, this.materials.brickWall);
+    // Transition seam caps to keep edge joins sealed at doorway corners.
+    this._buildBox(0.8, wallH, 0.4, 1.0, halfH, -2.95 - (wallJoin / 2), this.materials.brickWall);
+    this._buildBox(0.8, wallH, 0.4, 1.0, halfH, 2.95 + (wallJoin / 2), this.materials.brickWall);
 
     // 3. Lounge-to-Dancefloor Separation Wall (z = -10.5)
     // Left section (x: 1.0 to 8.0)
-    this._buildBox(7.0, wallH, 0.8, 4.5, halfH, -10.5, this.materials.brickWall);
+    this._buildBox(7.0 + wallJoin * 2, wallH, 0.8, 4.5, halfH, -10.5, this.materials.brickWall);
     // Right section (x: 13.0 to 20.0)
-    this._buildBox(7.0, wallH, 0.8, 16.5, halfH, -10.5, this.materials.brickWall);
+    this._buildBox(7.0 + wallJoin * 2, wallH, 0.8, 16.5, halfH, -10.5, this.materials.brickWall);
     // Lounge corridor lintel (x: 8.0 to 13.0)
-    this._buildBox(5.0, 1.5, 0.8, 10.5, 4.25, -10.5, this.materials.brickWall);
+    this._buildBox(5.0 + wallJoin, 1.5, 0.8, 10.5, 4.25, -10.5, this.materials.brickWall);
+    // Transition-end caps at the x-extremes of the separator corridor.
+    this._buildBox(0.4, wallH, 0.8, 8.0 - (wallJoin / 2), halfH, -10.5, this.materials.brickWall);
+    this._buildBox(0.4, wallH, 0.8, 13.0 + (wallJoin / 2), halfH, -10.5, this.materials.brickWall);
+
+    // 4. Hearthside Lounge left boundary wall (x = 6.0, z: -21.0 to -10.5)
+    this._buildBox(0.8, wallH, 10.5, 6.0, halfH, -15.75, this.materials.loungeWall);
   }
 
   /**

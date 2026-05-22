@@ -5,10 +5,14 @@ export class NPCManager {
   constructor(scene, audio) {
     this.scene = scene;
     this.audio = audio;
+    this.playerPushRadius = 0.76;
+    this.playerPushStrength = 1.25;
+    this.npcCrowdRadius = 0.58;
+    this._lastPlayerPos = null;
 
     // Pre-allocate shared NPC geometries to optimize draw calls and GPU vertex buffer uploads
     this.torsoGeo = new THREE.BoxGeometry(0.44, 0.6, 0.24);
-    this.headGeo = new THREE.BoxGeometry(0.32, 0.32, 0.32);
+    this.headGeo = new THREE.BoxGeometry(0.32, 0.34, 0.30);
     this.armGeo = new THREE.BoxGeometry(0.1, 0.44, 0.1);
     this.handGeo = new THREE.BoxGeometry(0.1, 0.08, 0.1);
     this.legGeo = new THREE.BoxGeometry(0.15, 0.52, 0.15);
@@ -84,10 +88,17 @@ export class NPCManager {
       npc.danceType = Math.floor(Math.random() * 4); // 0 to 3
       npc.dancePhase = Math.random() * Math.PI * 2;
       npc.danceSpeed = 0.7 + Math.random() * 0.4; // slower, relaxing motions
+      npc.walkSpeed = 0.85 + Math.random() * 0.35;
 
       // Subtle scaling variations for character heights
       const scale = 0.85 + Math.random() * 0.2;
       npc.group.scale.set(scale, scale, scale);
+      npc.state = 'standing';
+      npc.bodyRadius = 0.34 * scale;
+      npc.collisionRadius = this.npcCrowdRadius * scale;
+      npc.pushRadius = this.playerPushRadius * scale;
+      npc.pushWeight = 0.45;
+      npc.canBePushed = true;
 
       // Attach Drink Accessories: 4 select lounge patrons get glasses
       if (i < 4) {
@@ -107,6 +118,11 @@ export class NPCManager {
     doorman.group.rotation.y = Math.PI / 2; // Face towards the exterior queue
     doorman.danceType = -1; // Static folded arms doorman pose!
     doorman.baseRotationY = Math.PI / 2;
+    doorman.canBePushed = true;
+    doorman.bodyRadius = 0.35;
+    doorman.collisionRadius = 0.55;
+    doorman.pushRadius = 0.82;
+    doorman.pushWeight = 0.8;
     
     // Cross arms doorman pose
     doorman.joints.leftArm.rotation.z = -1.1;
@@ -129,6 +145,12 @@ export class NPCManager {
       patron.group.rotation.y = Math.PI; // Look towards bar counter (+Z)
       patron.danceType = -2; // Seated chatting/drinking pose
       patron.baseRotationY = Math.PI;
+      patron.canBePushed = true;
+      patron.pushWeight = 0.15;
+      patron.isSeated = true;
+      patron.bodyRadius = 0.30;
+      patron.collisionRadius = 0.52;
+      patron.pushRadius = 0.76;
       
       // Pivot legs forward to sit down
       patron.joints.leftLeg.rotation.x = -1.3;
@@ -150,6 +172,11 @@ export class NPCManager {
     selector.group.rotation.y = -Math.PI / 2; // Face the floor (-X)
     selector.danceType = 99; // Selector special vinyl platters twisting animation!
     selector.baseRotationY = -Math.PI / 2;
+    selector.canBePushed = true;
+    selector.pushWeight = 0.35;
+    selector.bodyRadius = 0.34;
+    selector.collisionRadius = 0.56;
+    selector.pushRadius = 0.78;
     
     this.scene.add(selector.group);
     this.npcs.push(selector);
@@ -164,6 +191,11 @@ export class NPCManager {
     bartender.dancePhase = Math.random() * Math.PI * 2;
     bartender.danceSpeed = 0.8;
     bartender.baseRotationY = 0;
+    bartender.canBePushed = true;
+    bartender.pushWeight = 0.28;
+    bartender.bodyRadius = 0.32;
+    bartender.collisionRadius = 0.54;
+    bartender.pushRadius = 0.76;
 
     // Give bartender a drink glass to polish!
     this._attachDrinkGlass(bartender, 'leftArm');
@@ -180,7 +212,16 @@ export class NPCManager {
 
     // 1. Core Materials
     const faceTex = TextureGenerator.generateNPCFace(skinColor, '#110a08', glassesColor, 64);
-    const headMat = new THREE.MeshStandardMaterial({ map: faceTex, roughness: 0.8 });
+    const faceMat = new THREE.MeshStandardMaterial({ map: faceTex, roughness: 0.65 });
+    const headSideMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.8 });
+    const headMats = [
+      headSideMat,
+      headSideMat,
+      headSideMat,
+      headSideMat,
+      faceMat,
+      headSideMat
+    ];
 
     const outfitTex = TextureGenerator.generateNPCOutfit(suitColor, stripeColor, clothingType, 64);
     const torsoMat = new THREE.MeshStandardMaterial({ map: outfitTex, roughness: 0.8 });
@@ -204,7 +245,7 @@ export class NPCManager {
     joints.head = new THREE.Group();
     joints.head.position.set(0, 1.2, 0);
     
-    const headMesh = new THREE.Mesh(this.headGeo, headMat);
+    const headMesh = new THREE.Mesh(this.headGeo, headMats);
     headMesh.position.set(0, 0.16, 0); // offset origin to bottom neck pivot
     headMesh.castShadow = true;
     joints.head.add(headMesh);
@@ -290,6 +331,23 @@ export class NPCManager {
   update(dt, playerPos) {
     const time = performance.now() * 0.001;
     const isBeat = this.audio.isBeatHit;
+    let playerVelX = 0;
+    let playerVelZ = 0;
+    let playerSpeed = 0;
+    if (playerPos && this._lastPlayerPos) {
+      playerVelX = playerPos.x - this._lastPlayerPos.x;
+      playerVelZ = playerPos.z - this._lastPlayerPos.z;
+      playerSpeed = Math.sqrt(playerVelX * playerVelX + playerVelZ * playerVelZ) / Math.max(dt, 0.0001);
+    }
+
+    if (playerPos) {
+      this._lastPlayerPos = { x: playerPos.x, z: playerPos.z };
+    }
+
+    if (playerPos) {
+      this.npcs.forEach(npc => this._applyPlayerPush(npc, playerPos, playerVelX, playerVelZ, playerSpeed, dt));
+      this._resolveNpcCrowding(dt);
+    }
 
     // Calculate a smooth decay-based beat intensity that spikes on drum kicks
     const decay = 1 - Math.exp(-8.0 * dt);
@@ -374,7 +432,7 @@ export class NPCManager {
           if (dist > 0.15) {
             const moveDirX = dx / dist;
             const moveDirZ = dz / dist;
-            const moveSpeed = 1.1; // realistic walking pace
+            const moveSpeed = npc.walkSpeed || 1.0; // realistic walking pace
             
             currentPos.x += moveDirX * moveSpeed * dt;
             currentPos.z += moveDirZ * moveSpeed * dt;
@@ -387,7 +445,7 @@ export class NPCManager {
             npc.baseRotationY = npc.group.rotation.y;
             
             // Leg & Arm swings (opposite swing)
-            const swingSpeed = 8.5;
+            const swingSpeed = 7.2;
             npc.joints.leftLeg.rotation.x = Math.sin(time * swingSpeed) * 0.45;
             npc.joints.rightLeg.rotation.x = -Math.sin(time * swingSpeed) * 0.45;
             
@@ -483,6 +541,11 @@ export class NPCManager {
         // Look up slightly (player camera is at y=1.7m, NPC head is at ~1.35m)
         const targetHeadX = -0.15;
         npc.joints.head.rotation.x += (targetHeadX - npc.joints.head.rotation.x) * 8.0 * dt;
+
+        if (npc.danceType >= 0 && !isWalking && !npc.isSeated) {
+          npc.group.rotation.y += ((targetGlobalAngle - npc.group.rotation.y) * 3.0 * dt);
+          npc.baseRotationY = npc.group.rotation.y;
+        }
       } else {
         // Return head to center smoothly if walking or standing (or let the dance loop handle it)
         if (isWalking) {
@@ -603,6 +666,70 @@ export class NPCManager {
           break;
       }
     });
+  }
+
+  /**
+   * Resolves NPC to NPC personal-space overlap for social movement clarity.
+   */
+  _resolveNpcCrowding(dt) {
+    for (let i = 0; i < this.npcs.length; i++) {
+      const a = this.npcs[i];
+      if (!a.canBePushed || a.isSeated) continue;
+      const aRadius = a.collisionRadius || 0.58;
+
+      for (let j = i + 1; j < this.npcs.length; j++) {
+        const b = this.npcs[j];
+        if (!b.canBePushed || b.isSeated) continue;
+
+        const dx = b.group.position.x - a.group.position.x;
+        const dz = b.group.position.z - a.group.position.z;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        const required = aRadius + (b.collisionRadius || 0.58);
+
+        if (dist > 0.0001 && dist < required) {
+          const overlap = required - dist;
+          const nX = dx / dist;
+          const nZ = dz / dist;
+          const aInv = 1.0 / Math.max(0.2, a.pushWeight || 0.45);
+          const bInv = 1.0 / Math.max(0.2, b.pushWeight || 0.45);
+          const total = aInv + bInv;
+          const pushA = (aInv / total) * overlap * 5.0 * dt;
+          const pushB = (bInv / total) * overlap * 5.0 * dt;
+
+          a.group.position.x -= nX * pushA;
+          a.group.position.z -= nZ * pushA;
+          b.group.position.x += nX * pushB;
+          b.group.position.z += nZ * pushB;
+        }
+      }
+    }
+  }
+
+  /**
+   * Applies player-driven push impulses so NPCs can be moved by player contact.
+   */
+  _applyPlayerPush(npc, playerPos, playerVelX, playerVelZ, playerSpeed, dt) {
+    if (!npc.canBePushed) return;
+
+    const dx = npc.group.position.x - playerPos.x;
+    const dz = npc.group.position.z - playerPos.z;
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    const pushRadius = npc.pushRadius || this.playerPushRadius;
+
+    if (dist < 0.0001 || dist > pushRadius + 0.45) return;
+
+    const toNpcX = dx / dist;
+    const toNpcZ = dz / dist;
+    const approach = (playerVelX * toNpcX + playerVelZ * toNpcZ);
+    const pushImpulse = (Math.max(0, approach) + Math.max(0, 0.55 - dist)) * (npc.pushWeight || 0.45) * this.playerPushStrength;
+
+    if (pushImpulse < 0.015) return;
+
+    const moveBy = (0.12 + Math.min(0.6, playerSpeed * 0.4)) * pushImpulse * dt;
+    if (npc.isSeated) return;
+
+    npc.group.position.x += toNpcX * moveBy;
+    npc.group.position.z += toNpcZ * moveBy;
   }
 
   /* --- HELPER SELECTORS --- */
