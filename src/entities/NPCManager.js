@@ -212,16 +212,14 @@ export class NPCManager {
 
     // 1. Core Materials
     const faceTex = TextureGenerator.generateNPCFace(skinColor, '#110a08', glassesColor, 64);
-    const faceMat = new THREE.MeshStandardMaterial({ map: faceTex, roughness: 0.65 });
-    const headSideMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.8 });
-    const headMats = [
-      headSideMat,
-      headSideMat,
-      headSideMat,
-      headSideMat,
-      faceMat,
-      headSideMat
-    ];
+    const faceMat = new THREE.MeshStandardMaterial({
+      map: faceTex,
+      roughness: 0.65,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1
+    });
+    const headMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.8 });
 
     const outfitTex = TextureGenerator.generateNPCOutfit(suitColor, stripeColor, clothingType, 64);
     const torsoMat = new THREE.MeshStandardMaterial({ map: outfitTex, roughness: 0.8 });
@@ -245,10 +243,18 @@ export class NPCManager {
     joints.head = new THREE.Group();
     joints.head.position.set(0, 1.2, 0);
     
-    const headMesh = new THREE.Mesh(this.headGeo, headMats);
+    const headMesh = new THREE.Mesh(this.headGeo, headMat);
     headMesh.position.set(0, 0.16, 0); // offset origin to bottom neck pivot
     headMesh.castShadow = true;
     joints.head.add(headMesh);
+
+    // Render the face as a small pixel-art panel on the local forward side (+Z).
+    // This avoids BoxGeometry material-index ambiguity and keeps every character's
+    // face locked to the front of the body regardless of world rotation.
+    const faceMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.28), faceMat);
+    faceMesh.position.set(0, 0.16, 0.153);
+    faceMesh.castShadow = false;
+    joints.head.add(faceMesh);
     group.add(joints.head);
 
     // 4. Arms Joints and Meshes
