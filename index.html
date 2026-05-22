@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    
+    <!-- Title & SEO Tags -->
+    <title>Hearthside Lounge — explorable 3D pixel-art cozy retreat</title>
+    <meta name="description" content="Explore a warm and cozy, low-poly, pixel-3D mountain lodge and botanist bar with organic procedural audio, ambient candlelights, and fireplace-warmed voxel visitors." />
+    
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <!-- Ambient Vignette & Color Grading Overlay -->
+    <div class="vignette"></div>
+
+    <!-- WebGL Canvas Container -->
+    <div id="app"></div>
+
+    <!-- Floating UI Prompts (e.g. "Main Room") -->
+    <div id="floating-prompt">WELCOME TO THE FIRESIDE</div>
+
+    <!-- VIP Admission Ticket Overlay (Web Audio Context Activation Trigger) -->
+    <div id="audio-modal">
+      <div class="ticket-container">
+        <div class="ticket-header">
+          <h1>HEARTHSIDE</h1>
+          <p>BOTANIST BAR & RETREAT</p>
+        </div>
+        
+        <div class="ticket-divider"></div>
+        
+        <div class="ticket-info">
+          <div class="info-box">
+            <div class="info-label">Admit</div>
+            <div class="info-val cozy-amber">LOUNGE PASS</div>
+          </div>
+          <div class="info-box">
+            <div class="info-label">Location</div>
+            <div class="info-val">THE FIRESIDE</div>
+          </div>
+          <div class="info-box">
+            <div class="info-label">Sound</div>
+            <div class="info-val candle-gold">ACOUSTIC CHILL</div>
+          </div>
+          <div class="info-box">
+            <div class="info-label">Security</div>
+            <div class="info-val">DOORMAN APPRVD</div>
+          </div>
+        </div>
+        
+        <div class="ticket-divider"></div>
+        
+        <button id="btn-start" class="ticket-btn">ACCEPT INVITATION & ENTER</button>
+        <div class="loading-text">INTERACTIVE 3D EXPERIENCE • HEADPHONES RECOMMENDED</div>
+      </div>
+    </div>
+
+    <!-- Live Heads-Up Display (HUD) Overlays -->
+    <div class="hud-layer">
+      <!-- Top Room Tracker -->
+      <div class="hud-header">
+        <div id="active-room-tag">COBBLESTONE STREET</div>
+        <div id="active-room-desc">WAITING OUTSIDE THE ENTRANCE</div>
+      </div>
+
+      <!-- Controls Panel (Top Right Exit instruction + Bottom Left controls list) -->
+      <div class="esc-panel">
+        Press <span>ESC</span> to release mouse pointer
+      </div>
+
+      <div class="hud-controls-panel">
+        <h3>NAVIGATION PANEL</h3>
+        <div class="control-row">
+          <span class="key-cap">W</span>
+          <span class="key-cap">A</span>
+          <span class="key-cap">S</span>
+          <span class="key-cap">D</span>
+          <span>Move Player</span>
+        </div>
+        <div class="control-row">
+          <span class="key-cap double">SHIFT</span>
+          <span>Hold to Sprint</span>
+        </div>
+        <div class="control-row">
+          <span class="key-cap double">MOUSE</span>
+          <span>Look Around (Pointer Locked)</span>
+        </div>
+        <div class="control-row">
+          <span class="key-cap">ESC</span>
+          <span>Release Pointer Lock</span>
+        </div>
+      </div>
+
+      <!-- Footer Info and Equalizer -->
+      <div class="hud-footer">
+        <!-- Live Audio Equalizer -->
+        <div class="equalizer-card">
+          <div class="eq-title">AUDIO FREQ MATRIX</div>
+          <div class="eq-bars">
+            <!-- 12 Bars for frequency bands -->
+            <div class="eq-bar" id="eq-0"></div>
+            <div class="eq-bar" id="eq-1"></div>
+            <div class="eq-bar" id="eq-2"></div>
+            <div class="eq-bar" id="eq-3"></div>
+            <div class="eq-bar" id="eq-4"></div>
+            <div class="eq-bar" id="eq-5"></div>
+            <div class="eq-bar" id="eq-6"></div>
+            <div class="eq-bar" id="eq-7"></div>
+            <div class="eq-bar" id="eq-8"></div>
+            <div class="eq-bar" id="eq-9"></div>
+            <div class="eq-bar" id="eq-10"></div>
+            <div class="eq-bar" id="eq-11"></div>
+          </div>
+        </div>
+
+        <!-- BPM Pulsing Light Indicator -->
+        <div class="beat-status">
+          <div class="beat-node" id="beat-pulse"></div>
+          <div class="beat-text">80 BPM ACOUSTIC CHILL</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Application Logic Entrypoint -->
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

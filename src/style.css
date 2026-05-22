@@ -1,0 +1,471 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400..900&family=Lora:ital,wght@0,400..700;1,400..700&family=Outfit:wght@100..900&family=Press+Start+2P&display=swap');
+
+:root {
+  --font-title: 'Cinzel', serif;
+  --font-text: 'Lora', serif;
+  --font-mono: 'Press Start 2P', monospace;
+
+  /* Color Palette - Cozy Woodland Lodge */
+  --bg-dark: #0a0807; /* warm charcoal */
+  --bg-glass: rgba(18, 14, 12, 0.8);
+  --border-glass: rgba(255, 230, 210, 0.08);
+
+  --wood-oak: #7d4c37;
+  --brick-red: #a25a42;
+  --foliage-green: #1b4d22;
+  --warm-amber: #ffb03a;
+  --candle-gold: #ffd56b;
+  --gold-trim: #d4af37;
+
+  /* Cozy Ambient Glows */
+  --glow-amber: 0 0 5px var(--warm-amber), 0 0 15px rgba(255, 176, 58, 0.5);
+  --glow-gold: 0 0 5px var(--candle-gold), 0 0 15px rgba(255, 213, 107, 0.5);
+  --glow-green: 0 0 5px var(--foliage-green), 0 0 12px rgba(27, 77, 34, 0.4);
+}
+
+/* Reset and Base Styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg-dark);
+  font-family: var(--font-text);
+  color: #e0e0f0;
+}
+
+/* Three.js Canvas Container */
+#app {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Scanlines removed for Hearthside natural realism style */
+
+/* Ambient Vignette & Color Grading Overlay */
+.vignette {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle, transparent 40%, rgba(5, 5, 12, 0.75) 95%);
+  pointer-events: none;
+  z-index: 998;
+}
+
+/* VIP Admission Ticket (Splash Screen) */
+#audio-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: radial-gradient(circle at center, #110e25 0%, #030308 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  transition: opacity 1s ease, visibility 1s ease;
+}
+
+#audio-modal.fade-out {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.ticket-container {
+  width: 90%;
+  max-width: 550px;
+  background: var(--bg-glass);
+  border: 2px solid var(--border-glass);
+  border-radius: 16px;
+  backdrop-filter: blur(20px);
+  padding: 30px;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 20px rgba(212, 175, 55, 0.1);
+  overflow: hidden;
+}
+
+/* Decorative Ticket Punches */
+.ticket-container::before,
+.ticket-container::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 30px;
+  height: 30px;
+  background-color: #0a0807;
+  border-radius: 50%;
+  border: 2px solid var(--border-glass);
+  transform: translateY(-50%);
+}
+.ticket-container::before { left: -17px; }
+.ticket-container::after { right: -17px; }
+
+.ticket-header {
+  margin-bottom: 25px;
+}
+
+.ticket-header h1 {
+  font-family: var(--font-title);
+  font-size: 2.2rem;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: #fff;
+  text-shadow: var(--glow-gold);
+  margin-bottom: 5px;
+}
+
+.ticket-header p {
+  font-family: var(--font-text);
+  font-size: 0.75rem;
+  color: var(--candle-gold);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.ticket-divider {
+  border-top: 1px dashed var(--border-glass);
+  margin: 20px 0;
+  position: relative;
+}
+
+.ticket-info {
+  margin: 20px 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+  text-align: left;
+}
+
+.info-box {
+  background: rgba(255, 255, 255, 0.02);
+  padding: 10px 15px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.info-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: #9c8e82;
+  letter-spacing: 1px;
+}
+
+.info-val {
+  font-family: var(--font-title);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.info-val.cozy-amber { color: var(--warm-amber); text-shadow: 0 0 5px rgba(255, 176, 58, 0.5); }
+.info-val.candle-gold { color: var(--candle-gold); text-shadow: 0 0 5px rgba(255, 213, 107, 0.5); }
+
+/* Start Experience Button - Rustic Timber with Gold Edge */
+.ticket-btn {
+  width: 100%;
+  background: linear-gradient(135deg, #7d4c37 0%, #a25a42 100%);
+  border: 1px solid var(--gold-trim);
+  border-radius: 10px;
+  color: #fff;
+  padding: 15px 20px;
+  font-family: var(--font-title);
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 15px rgba(125, 76, 55, 0.4);
+  transition: all 0.3s ease;
+  margin-top: 15px;
+}
+
+.ticket-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  transition: 0.5s;
+}
+
+.ticket-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(255, 176, 58, 0.4), var(--glow-amber);
+}
+
+.ticket-btn:hover::before {
+  left: 100%;
+}
+
+.ticket-btn:active {
+  transform: translateY(1px);
+}
+
+/* Floating Loading Text */
+.loading-text {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  margin-top: 15px;
+  color: #555577;
+  animation: pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+/* Glassmorphism Heads-Up Display (HUD) */
+.hud-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none; /* Let clicks pass to renderer */
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 20px;
+}
+
+/* Header Room Banner */
+.hud-header {
+  align-self: center;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-glass);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  padding: 10px 25px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  animation: slide-down 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: auto;
+}
+
+#active-room-tag {
+  font-family: var(--font-title);
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--candle-gold);
+  text-shadow: var(--glow-gold);
+}
+
+#active-room-desc {
+  font-size: 0.75rem;
+  color: #aaaacc;
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Sidebar Keyboard Controls Panel */
+.hud-controls-panel {
+  align-self: flex-start;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-glass);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  padding: 15px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  animation: slide-right 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: auto;
+  margin-top: 10px;
+}
+
+.hud-controls-panel h3 {
+  font-family: var(--font-title);
+  font-size: 0.85rem;
+  letter-spacing: 2px;
+  color: var(--warm-amber);
+  text-shadow: var(--glow-amber);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+}
+
+.control-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 0.75rem;
+  color: #aaaacc;
+}
+
+.control-row:last-child {
+  margin-bottom: 0;
+}
+
+.key-cap {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-bottom: 3px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-family: monospace;
+  font-size: 0.7rem;
+  font-weight: bold;
+  color: #fff;
+  margin-right: 10px;
+  min-width: 32px;
+  text-align: center;
+}
+
+.key-cap.double {
+  min-width: 60px;
+}
+
+/* Footer & Equalizer Overlay */
+.hud-footer {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  pointer-events: auto;
+}
+
+/* CSS-based Live Equalizer Display */
+.equalizer-card {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-glass);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  padding: 12px 18px;
+  width: 200px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.eq-title {
+  font-family: var(--font-title);
+  font-size: 0.75rem;
+  color: var(--candle-gold);
+  text-shadow: 0 0 5px rgba(255, 213, 107, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+}
+
+.eq-bars {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  height: 35px;
+}
+
+.eq-bar {
+  width: 6px;
+  height: 10%;
+  background: linear-gradient(to top, var(--wood-oak), var(--candle-gold));
+  border-radius: 2px;
+  transition: height 0.05s ease;
+}
+
+/* BPM Pulsing Light Indicator */
+.beat-status {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-glass);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.beat-node {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: var(--warm-amber);
+  box-shadow: var(--glow-amber);
+  margin-right: 10px;
+  transition: transform 0.1s ease, background-color 0.1s ease;
+}
+
+.beat-text {
+  font-family: var(--font-title);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+/* Room HUD notifications / floating prompts */
+#floating-prompt {
+  position: absolute;
+  top: 55%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(18, 14, 12, 0.95);
+  border: 1px solid var(--gold-trim);
+  box-shadow: var(--glow-gold);
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-family: var(--font-title);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 500;
+  text-align: center;
+}
+
+#floating-prompt.show {
+  opacity: 1;
+}
+
+/* Animations */
+@keyframes slide-down {
+  from { transform: translateY(-40px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes slide-right {
+  from { transform: translateX(-40px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* Pointer lock unlock reminder overlay */
+.esc-panel {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-glass);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 0.65rem;
+  letter-spacing: 1px;
+  color: #8888aa;
+  pointer-events: auto;
+}
+.esc-panel span {
+  color: #fff;
+  font-weight: bold;
+}

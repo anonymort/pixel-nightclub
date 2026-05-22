@@ -1,0 +1,18 @@
+{
+  "name": "pixel-hospital",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "puppeteer": "^25.0.4",
+    "vite": "^8.0.12"
+  },
+  "dependencies": {
+    "three": "^0.184.0"
+  }
+}
