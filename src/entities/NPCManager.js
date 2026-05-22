@@ -248,11 +248,12 @@ export class NPCManager {
     headMesh.castShadow = true;
     joints.head.add(headMesh);
 
-    // Render the face as a small pixel-art panel on the local forward side (+Z).
+    // Render the face as a small pixel-art panel on the local forward side (-Z).
     // This avoids BoxGeometry material-index ambiguity and keeps every character's
     // face locked to the front of the body regardless of world rotation.
     const faceMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.26, 0.28), faceMat);
-    faceMesh.position.set(0, 0.16, 0.153);
+    faceMesh.position.set(0, 0.16, -0.153);
+    faceMesh.rotation.y = Math.PI;
     faceMesh.castShadow = false;
     joints.head.add(faceMesh);
     group.add(joints.head);
