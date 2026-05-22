@@ -232,7 +232,7 @@ export class SceneManager {
     if (x < -4.8) {
       // Exterior: Gorgeous golden-hour copper-orange sunset
       targetColor.setHex(0x4c2b1a); 
-      targetDensity = 0.016; // Clearer outside to enjoy the long shadows and sunset
+      targetDensity = 0.014; // Clearer outside to enjoy the long shadows and sunset
     } else if (x < 1.0) {
       // Lobby Gateway / Coatroom transition zone (soft warm timber/copper glow)
       targetColor.setHex(0x16100d);
@@ -240,7 +240,7 @@ export class SceneManager {
     } else {
       // Deep lounge interior (acoustic floor, bar, fireplace)
       targetColor.setHex(0x0a0807);
-      targetDensity = 0.028;
+      targetDensity = 0.024;
     }
 
     // Smoothly lerp background color

@@ -28,21 +28,21 @@ export class LightingManager {
    */
   _initEnvironmentLights() {
     // 1. Ambient base (soft warm amber candle/wood tone to lift shadows slightly)
-    const ambientLight = new THREE.AmbientLight(0x2d1f18, 0.70);
+    const ambientLight = new THREE.AmbientLight(0x2d1f18, 0.82);
     this.scene.add(ambientLight);
 
     // 2. Dual-Tone Hemisphere Light (creates beautiful, natural sunset sky/timber reflections)
     // Top-down color: warm copper sky; Bottom-up color: soft timber brown (boosted to shine up onto rafters)
-    const hemiLight = new THREE.HemisphereLight(0x5c3b24, 0x3d271a, 0.90);
+    const hemiLight = new THREE.HemisphereLight(0x5c3b24, 0x4a321f, 1.02);
     this.scene.add(hemiLight);
 
     // 3. Bar Backlight (Warm glowing golden honey - optimized falloff and range)
-    const barLight = new THREE.PointLight(0xffaa3a, 3.5, 16.0, 1.0);
+    const barLight = new THREE.PointLight(0xffaa3a, 3.8, 17.0, 1.0);
     barLight.position.set(9.0, 2.2, 9.8);
     this.scene.add(barLight);
 
     // 4. Lobby Gateway Light (Warm amber entry portal light welcoming players from the street)
-    const lobbyLight = new THREE.PointLight(0xffb03a, 2.5, 12.0, 1.0);
+    const lobbyLight = new THREE.PointLight(0xffb03a, 2.8, 13.0, 1.0);
     lobbyLight.position.set(-1.9, 3.2, 0);
     this.scene.add(lobbyLight);
 
@@ -52,14 +52,19 @@ export class LightingManager {
     this.scene.add(this.fireplaceLight);
 
     // 5b. Fireplace Lounge soft fill light (non-shadow-casting to lift brick chimney left-side silhouette)
-    this.fireplaceFillLight = new THREE.PointLight(0xcc6622, 1.2, 16.0, 1.0);
+    this.fireplaceFillLight = new THREE.PointLight(0xcc6622, 1.55, 17.0, 1.0);
     this.fireplaceFillLight.position.set(10.0, 2.0, -17.0);
     this.scene.add(this.fireplaceFillLight);
 
     // 5c. Dancefloor Ceiling soft fill light (non-shadow-casting to illuminate rafters and timber beams)
-    this.dancefloorCeilingFill = new THREE.PointLight(0xcc7733, 1.8, 16.0, 1.0);
+    this.dancefloorCeilingFill = new THREE.PointLight(0xcc7733, 2.4, 18.0, 1.0);
     this.dancefloorCeilingFill.position.set(10.5, 4.4, -1.0);
     this.scene.add(this.dancefloorCeilingFill);
+
+    // 5d. Acoustic Hall low fill, intentionally non-shadow-casting to preserve performance.
+    this.acousticHallFill = new THREE.PointLight(0xb86a32, 1.35, 18.0, 1.0);
+    this.acousticHallFill.position.set(8.0, 2.4, 1.5);
+    this.scene.add(this.acousticHallFill);
 
     // ==========================================
     // NEW LIGHT SOURCES FOR DARKEST ROOMS
@@ -105,7 +110,7 @@ export class LightingManager {
       const spot = new THREE.SpotLight(config.color, 12, 14, Math.PI / 4, 0.6, 1.2);
       spot.position.set(config.x, ceilingY, config.z);
       
-      spot.castShadow = true;
+      spot.castShadow = config.x === 5.0 && config.z === -4.0;
       spot.shadow.mapSize.width = 512;
       spot.shadow.mapSize.height = 512;
       spot.shadow.camera.near = 0.5;
@@ -158,7 +163,7 @@ export class LightingManager {
    */
   _initExteriorLighting() {
     // 1. Warm amber gas streetlight hanging above doorman podium
-    const streetLight1 = new THREE.SpotLight(0xffaa22, 18, 12, Math.PI / 3, 0.5, 1.0);
+    const streetLight1 = new THREE.SpotLight(0xffaa22, 18, 13, Math.PI / 3, 0.5, 1.0);
     streetLight1.position.set(-6.5, 4.0, -3.5);
     streetLight1.target.position.set(-6.5, 0, -3.5);
     
@@ -170,7 +175,7 @@ export class LightingManager {
     this.scene.add(streetLight1.target);
 
     // 2. Second warm amber gas streetlight illuminating the far exterior line
-    const streetLight2 = new THREE.SpotLight(0xffaa22, 14, 12, Math.PI / 3, 0.5, 1.0);
+    const streetLight2 = new THREE.SpotLight(0xffaa22, 15, 14, Math.PI / 3, 0.5, 1.0);
     streetLight2.position.set(-14.5, 4.0, -3.5);
     streetLight2.target.position.set(-14.5, 0, -3.5);
     
@@ -182,7 +187,7 @@ export class LightingManager {
     this.scene.add(streetLight2.target);
 
     // 3. Golden Hour Setting Sun (Low-angle warm Directional Light shining down the cobblestone sidewalk)
-    const sunLight = new THREE.DirectionalLight(0xff6a22, 4.0); // Rich golden-orange sun
+    const sunLight = new THREE.DirectionalLight(0xff6a22, 3.6); // Rich golden-orange sun
     sunLight.position.set(-25.0, 3.5, 2.0); // Low-angle sun in the far west/left
     sunLight.castShadow = true;
     

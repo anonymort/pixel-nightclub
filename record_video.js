@@ -4,6 +4,29 @@ import fs from 'fs';
 
 const outPath = '/Users/matt/.gemini/antigravity/brain/36faef96-870a-4f97-9dd8-8980282109da/walkthrough.webm';
 
+async function enableVisualQaMode(page) {
+  await page.addStyleTag({
+    content: `
+      #hud,
+      .hud,
+      .navigation-panel,
+      .audio-panel,
+      .room-indicator,
+      .room-notification,
+      .toast,
+      .pointer-lock-hint,
+      [class*="hud"],
+      [class*="panel"],
+      [class*="indicator"],
+      [class*="notification"] {
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+    `
+  });
+}
+
 async function run() {
   console.log('Launching headless browser for cinematic video recording...');
   const browser = await puppeteer.launch({
@@ -22,6 +45,7 @@ async function run() {
   await page.waitForSelector('#btn-start');
   console.log('Clicking entrance button to activate scene and audio...');
   await page.click('#btn-start');
+  await enableVisualQaMode(page);
   
   // Wait 4 seconds for procedural geometry to compile and materials to initialize
   console.log('Allowing scene to initialize (4 seconds)...');
@@ -74,15 +98,16 @@ async function run() {
         };
       };
       
-      // Cinematic Keyframes corresponding exactly to the 12 tour viewpoints
+      // Cinematic keyframes: the 12 tour viewpoints plus one transition-only waypoint
+      // to avoid wall-facing interpolation between the lounge art wall and DJ booth.
       const keyframes = [
         {
-          pos: { x: -14.0, y: 1.7, z: -3.5 },
-          target: { x: -5.0, y: 1.7, z: -3.5 }
+          pos: { x: -16.0, y: 1.75, z: -5.4 },
+          target: { x: -5.6, y: 1.85, z: -2.2 }
         },
         {
-          pos: { x: -8.0, y: 1.7, z: -1.0 },
-          target: { x: -4.0, y: 1.7, z: 0.0 }
+          pos: { x: -8.8, y: 1.7, z: -1.6 },
+          target: { x: -3.8, y: 1.75, z: 0.4 }
         },
         {
           pos: { x: -4.5, y: 1.7, z: 0.0 },
@@ -93,36 +118,40 @@ async function run() {
           target: { x: 1.0, y: 1.7, z: 6.0 }
         },
         {
-          pos: { x: -1.5, y: 1.7, z: 6.0 },
-          target: { x: -4.2, y: 1.7, z: 6.0 }
+          pos: { x: -0.6, y: 1.7, z: 5.4 },
+          target: { x: -4.4, y: 1.55, z: 7.0 }
         },
         {
           pos: { x: -1.0, y: 1.7, z: 1.0 },
           target: { x: 4.0, y: 1.7, z: 0.0 }
         },
         {
-          pos: { x: 5.5, y: 1.7, z: 8.5 },
-          target: { x: 12.0, y: 1.7, z: 8.5 }
+          pos: { x: 4.2, y: 1.7, z: 7.8 },
+          target: { x: 12.0, y: 1.75, z: 8.8 }
         },
         {
-          pos: { x: 8.5, y: 1.7, z: -2.5 },
-          target: { x: 8.5, y: 3.5, z: -2.5 }
+          pos: { x: 5.8, y: 1.7, z: 1.4 },
+          target: { x: 11.6, y: 2.7, z: -2.4 }
         },
         {
           pos: { x: 9.0, y: 1.7, z: -11.0 },
           target: { x: 13.0, y: 1.7, z: -16.0 }
         },
         {
-          pos: { x: 10.0, y: 1.7, z: -15.0 },
-          target: { x: 13.0, y: 1.7, z: -20.5 }
+          pos: { x: 8.2, y: 1.7, z: -13.0 },
+          target: { x: 13.0, y: 1.45, z: -20.2 }
         },
         {
-          pos: { x: 15.0, y: 1.7, z: -15.0 },
-          target: { x: 19.5, y: 1.7, z: -15.0 }
+          pos: { x: 13.2, y: 1.7, z: -14.0 },
+          target: { x: 19.5, y: 1.65, z: -15.0 }
         },
         {
-          pos: { x: 14.0, y: 1.7, z: 0.0 },
-          target: { x: 18.0, y: 1.7, z: 0.0 }
+          pos: { x: 12.2, y: 1.7, z: -6.5 },
+          target: { x: 16.0, y: 1.6, z: -3.0 }
+        },
+        {
+          pos: { x: 13.0, y: 1.7, z: -1.4 },
+          target: { x: 18.0, y: 1.55, z: 0.0 }
         }
       ];
       
@@ -183,7 +212,7 @@ async function run() {
   
   // Wait for recording duration plus some buffer for the FileReader compilation
   console.log('Sweeping club... Please wait while video is recorded...');
-  // 11 transitions * 2.5s = 27.5s total duration. Let's wait 31 seconds.
+  // 12 transitions * 2.5s = 30s total duration. Wait 31 seconds for capture and flush.
   await new Promise(resolve => setTimeout(resolve, 31000));
   
   console.log('Retrieving compiled video from browser memory...');

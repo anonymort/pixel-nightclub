@@ -9,6 +9,29 @@ if (!fs.existsSync(outDir)) {
   fs.mkdirSync(outDir, { recursive: true });
 }
 
+async function enableVisualQaMode(page) {
+  await page.addStyleTag({
+    content: `
+      #hud,
+      .hud,
+      .navigation-panel,
+      .audio-panel,
+      .room-indicator,
+      .room-notification,
+      .toast,
+      .pointer-lock-hint,
+      [class*="hud"],
+      [class*="panel"],
+      [class*="indicator"],
+      [class*="notification"] {
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+    `
+  });
+}
+
 async function run() {
   console.log('Launching headless browser...');
   const browser = await puppeteer.launch({
@@ -27,6 +50,7 @@ async function run() {
   await page.waitForSelector('#btn-start');
   console.log('Clicking entrance button...');
   await page.click('#btn-start');
+  await enableVisualQaMode(page);
   
   // Wait 4 seconds for procedural geometry and audio nodes to spin up
   await new Promise(resolve => setTimeout(resolve, 4000));
@@ -35,15 +59,15 @@ async function run() {
     {
       num: '01',
       name: 'street_entrance',
-      pos: { x: -14.0, y: 1.7, z: -3.5 },
-      target: { x: -5.0, y: 1.7, z: -3.5 },
-      desc: 'Exterior facade showing the elegant polished brass HEARTHSIDE sign and copper sconce lantern.'
+      pos: { x: -16.0, y: 1.75, z: -5.4 },
+      target: { x: -5.6, y: 1.85, z: -2.2 },
+      desc: 'Exterior facade, sidewalk queue, sedan curb edge, trellis, brass HEARTHSIDE sign, and copper sconce lantern.'
     },
     {
       num: '02',
       name: 'approaching_door',
-      pos: { x: -8.0, y: 1.7, z: -1.0 },
-      target: { x: -4.0, y: 1.7, z: 0.0 },
+      pos: { x: -8.8, y: 1.7, z: -1.6 },
+      target: { x: -3.8, y: 1.75, z: 0.4 },
       desc: 'Approaching the double-door entrance with brick framing.'
     },
     {
@@ -63,8 +87,8 @@ async function run() {
     {
       num: '05',
       name: 'cloakroom_seating',
-      pos: { x: -1.5, y: 1.7, z: 6.0 },
-      target: { x: -4.2, y: 1.7, z: 6.0 },
+      pos: { x: -0.6, y: 1.7, z: 5.4 },
+      target: { x: -4.4, y: 1.55, z: 7.0 },
       desc: 'Looking back at the cozy wool bench seating cushions and potted clay plants.'
     },
     {
@@ -77,15 +101,15 @@ async function run() {
     {
       num: '07',
       name: 'botanist_bar',
-      pos: { x: 5.5, y: 1.7, z: 8.5 },
-      target: { x: 12.0, y: 1.7, z: 8.5 },
+      pos: { x: 4.2, y: 1.7, z: 7.8 },
+      target: { x: 12.0, y: 1.75, z: 8.8 },
       desc: 'Looking down the mahogany Botanist Bar counter with glowing honey shelves and velvet stools.'
     },
     {
       num: '08',
       name: 'dancefloor_chandelier',
-      pos: { x: 8.5, y: 1.7, z: -2.5 },
-      target: { x: 8.5, y: 3.5, z: -2.5 },
+      pos: { x: 5.8, y: 1.7, z: 1.4 },
+      target: { x: 11.6, y: 2.7, z: -2.4 },
       desc: 'Looking up at the exposed oak timber rafters and the candle chandelier.'
     },
     {
@@ -98,22 +122,22 @@ async function run() {
     {
       num: '10',
       name: 'fireplace_and_sconces',
-      pos: { x: 10.0, y: 1.7, z: -15.0 },
-      target: { x: 13.0, y: 1.7, z: -20.5 },
+      pos: { x: 8.2, y: 1.7, z: -13.0 },
+      target: { x: 13.0, y: 1.45, z: -20.2 },
       desc: 'Looking at the cozy brick fireplace flanked by the newly corrected wall-mounted brass candle sconces and the back-wall music poster.'
     },
     {
       num: '11',
       name: 'botanical_art_wall',
-      pos: { x: 15.0, y: 1.7, z: -15.0 },
-      target: { x: 19.5, y: 1.7, z: -15.0 },
+      pos: { x: 13.2, y: 1.7, z: -14.0 },
+      target: { x: 19.5, y: 1.65, z: -15.0 },
       desc: 'Viewing the newly fixed, wall-mounted botanical art frame in perfect 3D relief on the lounge side wall.'
     },
     {
       num: '12',
       name: 'dj_booth',
-      pos: { x: 14.0, y: 1.7, z: 0.0 },
-      target: { x: 18.0, y: 1.7, z: 0.0 },
+      pos: { x: 13.0, y: 1.7, z: -1.4 },
+      target: { x: 18.0, y: 1.55, z: 0.0 },
       desc: 'The DJ Turntable Console and massive walnut-veneered subwoofer speaker towers.'
     }
   ];

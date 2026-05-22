@@ -3,6 +3,29 @@ import path from 'path';
 
 const outDir = '/Users/matt/.gemini/antigravity/brain/36faef96-870a-4f97-9dd8-8980282109da';
 
+async function enableVisualQaMode(page) {
+  await page.addStyleTag({
+    content: `
+      #hud,
+      .hud,
+      .navigation-panel,
+      .audio-panel,
+      .room-indicator,
+      .room-notification,
+      .toast,
+      .pointer-lock-hint,
+      [class*="hud"],
+      [class*="panel"],
+      [class*="indicator"],
+      [class*="notification"] {
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+    `
+  });
+}
+
 async function run() {
   console.log('Launching headless browser...');
   const browser = await puppeteer.launch({
@@ -21,6 +44,7 @@ async function run() {
   await page.waitForSelector('#btn-start');
   console.log('Clicking entrance button...');
   await page.click('#btn-start');
+  await enableVisualQaMode(page);
   
   // Wait 4 seconds for procedural geometry and audio nodes to spin up
   await new Promise(resolve => setTimeout(resolve, 4000));
@@ -28,28 +52,28 @@ async function run() {
   const rooms = [
     {
       name: 'exterior',
-      pos: { x: -14.0, y: 1.7, z: -3.5 },
-      target: { x: -5.0, y: 1.7, z: -3.5 }
+      pos: { x: -16.0, y: 1.75, z: -5.4 },
+      target: { x: -5.6, y: 1.85, z: -2.2 }
     },
     {
       name: 'cloakroom',
-      pos: { x: -2.5, y: 1.7, z: 6.0 },
-      target: { x: -8.0, y: 1.7, z: 6.0 }
+      pos: { x: -3.5, y: 1.7, z: 6.0 },
+      target: { x: 1.0, y: 1.65, z: 6.0 }
     },
     {
       name: 'bar',
-      pos: { x: 5.5, y: 1.7, z: 8.5 },
-      target: { x: 12.0, y: 1.7, z: 8.5 }
+      pos: { x: 4.2, y: 1.7, z: 7.8 },
+      target: { x: 12.0, y: 1.75, z: 8.8 }
     },
     {
       name: 'fireplace',
-      pos: { x: 10.0, y: 1.7, z: -15.0 },
-      target: { x: 14.0, y: 1.4, z: -19.8 }
+      pos: { x: 8.2, y: 1.7, z: -13.0 },
+      target: { x: 13.0, y: 1.45, z: -20.2 }
     },
     {
       name: 'dancefloor',
-      pos: { x: 8.5, y: 1.7, z: -2.5 },
-      target: { x: 8.5, y: 3.5, z: -2.5 }
+      pos: { x: 5.8, y: 1.7, z: 1.4 },
+      target: { x: 11.6, y: 2.7, z: -2.4 }
     }
   ];
   
