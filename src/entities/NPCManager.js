@@ -64,10 +64,26 @@ const ROLE_CONTACT_PROFILES = {
     waveCooldown: 10,
     returnStrength: 2.4,
   },
+  photographer: {
+    role: 'photographer',
+    radius: 0.48,
+    pushRadius: 0.7,
+    contactWeight: 10,
+    canBePushed: true,
+    waveChance: 0,
+    waveCooldown: 20,
+    returnStrength: 3,
+  },
 };
+
+const CLUB_EXIT_THRESHOLD_X = -4.8;
 
 function angleDifference(a, b) {
   return Math.atan2(Math.sin(a - b), Math.cos(a - b));
+}
+
+export function calculateFacingAngle(from, to) {
+  return Math.atan2(-(to.x - from.x), -(to.z - from.z));
 }
 
 export function createNpcContactProfile(role = 'standing patron') {
@@ -158,6 +174,259 @@ export function applyAnchorReturn(npc, dt) {
   npc.group.position.z += (dz / dist) * step;
 }
 
+export function updatePhotographerTriggerState(previousState, playerX) {
+  const currentZone = playerX <= CLUB_EXIT_THRESHOLD_X ? 'outside' : 'inside';
+  const lastZone = previousState?.lastZone ?? currentZone;
+  let isActive = previousState?.isActive ?? false;
+
+  if (lastZone === 'inside' && currentZone === 'outside') {
+    isActive = true;
+  } else if (lastZone === 'outside' && currentZone === 'inside') {
+    isActive = false;
+  }
+
+  return { isActive, lastZone: currentZone };
+}
+
+export function getPhotographerFlashInterval(index = 0) {
+  return 1.15 + (index % 2) * 0.55;
+}
+
+export function updatePhotographerFlash(npc, time, isActive) {
+  const interval = npc.flashInterval ?? getPhotographerFlashInterval(npc.photographerIndex ?? 0);
+  npc.flashInterval = interval;
+  npc.flashDuration = npc.flashDuration ?? 0.12;
+
+  if (!isActive) {
+    npc.flashUntil = 0;
+    npc.nextFlashTime = time + interval;
+    return false;
+  }
+
+  if (npc.nextFlashTime == null) {
+    npc.nextFlashTime = time + (npc.flashOffset ?? interval);
+  }
+
+  if (time < npc.nextFlashTime) return false;
+
+  npc.flashUntil = time + npc.flashDuration;
+  npc.nextFlashTime = time + interval;
+  return true;
+}
+
+export function getNpcUpdateMode(npc, playerPos) {
+  if (!playerPos) return 'full';
+
+  const dx = playerPos.x - npc.group.position.x;
+  const dz = playerPos.z - npc.group.position.z;
+  const dist = Math.sqrt(dx * dx + dz * dz);
+
+  if (npc.danceType === 75) {
+    return dist <= 5.5 || playerPos.x <= CLUB_EXIT_THRESHOLD_X ? 'full' : 'sleep';
+  }
+
+  if (npc.danceType === 50 || npc.danceType === 99 || npc.danceType === -1) {
+    return dist <= 6 ? 'full' : dist <= 14 ? 'poseOnly' : 'sleep';
+  }
+
+  if (dist <= 8) return 'full';
+  if (dist <= 16) return 'poseOnly';
+  return 'sleep';
+}
+
+function approachRotation(current, target, dt, speed = 7) {
+  return current + (target - current) * Math.min(1, speed * dt);
+}
+
+export function applyStandingDanceMotion(
+  npc,
+  { beatIntensity = 0, dt = 0.016, isLookingAtPlayer = false, isWavingAtPlayer = false, time = 0 }
+) {
+  const amplitude = npc.danceAmplitude ?? 1;
+  const energy = npc.danceEnergy ?? 1;
+  const expression = npc.danceExpression ?? 0;
+  const accentPhase = npc.danceAccentPhase ?? 0;
+  const speedMult = (npc.danceSpeed ?? 1) * energy;
+  const phase = npc.dancePhase ?? 0;
+  const groove = time * speedMult + phase + accentPhase * 0.18;
+  const baseRotationY = npc.baseRotationY ?? 0;
+  const beat = beatIntensity;
+  const s1 = Math.sin(groove * 1.7);
+  const c1 = Math.cos(groove * 1.7);
+  const s2 = Math.sin(groove * 3.4);
+  const c2 = Math.cos(groove * 3.4);
+  const snap = Math.max(0, Math.sin(groove * 3.4 + Math.PI * 0.2));
+  const accentWave = Math.max(0, Math.sin(time * 0.72 + accentPhase));
+  const accent = expression * Math.pow(accentWave, 10);
+
+  const pose = {
+    bodyY: 0,
+    turn: baseRotationY,
+    lean: 0,
+    headX: 0,
+    headY: 0,
+    leftArmX: -0.15,
+    leftArmY: 0,
+    leftArmZ: 0,
+    rightArmX: -0.15,
+    rightArmY: 0,
+    rightArmZ: 0,
+    leftLegX: 0,
+    rightLegX: 0,
+    leftLegY: 0,
+    rightLegY: 0,
+  };
+
+  switch (npc.danceType) {
+    case 0: // Chill chatterer: small steps with loose talking hands.
+      pose.bodyY = 0.012 + Math.max(0, s2) * 0.025 - beat * 0.025;
+      pose.turn = baseRotationY + s1 * 0.14 + beat * 0.04 * Math.sin(phase);
+      pose.lean = c1 * 0.045;
+      pose.headX = s2 * 0.06 + beat * 0.08;
+      pose.headY = Math.sin(groove * 1.3) * 0.18;
+      pose.leftArmX = -0.22 + s1 * 0.16 - beat * 0.08;
+      pose.leftArmY = -0.18 + c1 * 0.1;
+      pose.leftArmZ = -0.08 + c2 * 0.16;
+      pose.rightArmX = -0.18 + c1 * 0.12 - beat * 0.07;
+      pose.rightArmY = 0.12 + s1 * 0.08;
+      pose.rightArmZ = 0.12 + s2 * 0.12;
+      pose.leftLegX = Math.max(0, s1) * 0.12 + beat * 0.07;
+      pose.rightLegX = Math.max(0, -s1) * 0.12 + beat * 0.05;
+      break;
+    case 1: // Cozy swayer: side-to-side weight transfer with shoulder rolls.
+      pose.bodyY = 0.008 + Math.abs(s1) * 0.018 - beat * 0.025;
+      pose.turn = baseRotationY + c1 * 0.04;
+      pose.lean = s1 * 0.12 + beat * 0.045 * Math.sin(phase);
+      pose.headX = Math.abs(s1) * 0.1 + beat * 0.12;
+      pose.headY = c1 * 0.08;
+      pose.leftArmX = -0.08 + c1 * 0.08;
+      pose.leftArmY = -0.18;
+      pose.leftArmZ = -0.42 + s2 * 0.18 - beat * 0.04;
+      pose.rightArmX = -0.08 - c1 * 0.08;
+      pose.rightArmY = 0.18;
+      pose.rightArmZ = 0.42 + c2 * 0.18 + beat * 0.04;
+      pose.leftLegX = Math.max(0, -s1) * 0.1;
+      pose.rightLegX = Math.max(0, s1) * 0.1;
+      pose.leftLegY = s1 * 0.12;
+      pose.rightLegY = -s1 * 0.1;
+      break;
+    case 2: // Rhythmic nodder: knee bounce and alternating elbow pumps.
+      pose.bodyY = Math.max(0, snap) * 0.018 - beat * 0.03;
+      pose.turn = baseRotationY + Math.sin(groove * 0.9) * 0.055;
+      pose.lean = c1 * 0.11;
+      pose.headX = Math.max(0, s2) * 0.22 + beat * 0.22;
+      pose.headY = s1 * 0.08;
+      pose.leftArmX = -0.28 + s1 * 0.12 - Math.max(0, s2) * 0.18 - beat * 0.08;
+      pose.leftArmY = -0.12 + s1 * 0.08;
+      pose.leftArmZ = -0.18 + c1 * 0.15;
+      pose.rightArmX = -0.28 - s1 * 0.12 - Math.max(0, -s2) * 0.18 - beat * 0.08;
+      pose.rightArmY = 0.12 + c1 * 0.08;
+      pose.rightArmZ = 0.18 - s1 * 0.15;
+      pose.leftLegX = 0.08 + Math.max(0, s2) * 0.24 + (s1 + 1) * 0.08 + beat * 0.16;
+      pose.rightLegX = 0.08 + Math.max(0, -s2) * 0.24 + (1 - s1) * 0.08 + beat * 0.12;
+      break;
+    case 3: // Conversationalist: relaxed step-touch and pointing gesture.
+      pose.bodyY = 0.008 + Math.abs(c1) * 0.012 - beat * 0.025;
+      pose.turn = baseRotationY + s1 * 0.08 + beat * 0.07 * Math.sin(time * 2);
+      pose.lean = -s1 * 0.055;
+      pose.headX = c2 * 0.035;
+      pose.headY = s1 * 0.12;
+      pose.leftArmX = -0.34 + s2 * 0.18 - beat * 0.12;
+      pose.leftArmY = -0.08 + snap * 0.22;
+      pose.leftArmZ = -0.2 + c1 * 0.18;
+      pose.rightArmX = -0.2 + c2 * 0.1 - beat * 0.09;
+      pose.rightArmY = 0.1 - snap * 0.14;
+      pose.rightArmZ = 0.2 + s1 * 0.14;
+      pose.leftLegX = Math.max(0, c1) * 0.12 + beat * 0.06;
+      pose.rightLegX = Math.max(0, -c1) * 0.12 + beat * 0.06;
+      pose.leftLegY = c1 * 0.05;
+      pose.rightLegY = -c1 * 0.05;
+      break;
+    default:
+      return;
+  }
+
+  pose.bodyY *= amplitude;
+  pose.turn = baseRotationY + (pose.turn - baseRotationY) * amplitude;
+  pose.lean *= amplitude;
+  pose.headX *= amplitude;
+  pose.headY *= amplitude;
+  pose.leftArmX *= amplitude;
+  pose.leftArmY *= amplitude;
+  pose.leftArmZ *= amplitude;
+  pose.rightArmX *= amplitude;
+  pose.rightArmY *= amplitude;
+  pose.rightArmZ *= amplitude;
+  pose.leftLegX *= amplitude;
+  pose.rightLegX *= amplitude;
+  pose.leftLegY *= amplitude;
+  pose.rightLegY *= amplitude;
+
+  if (accent > 0.001) {
+    const accentSide = Math.sin(accentPhase + (npc.danceType ?? 0) * 1.7) >= 0 ? 1 : -1;
+    pose.bodyY += accent * 0.018;
+    pose.turn += accentSide * accent * 0.08;
+    pose.lean += accentSide * accent * 0.16;
+    pose.headX += accent * 0.09;
+    pose.headY += accentSide * accent * 0.18;
+    pose.leftArmX -= accent * 0.1;
+    pose.leftArmY -= accentSide * accent * 0.12;
+    pose.leftArmZ -= accentSide * accent * 0.28;
+    pose.rightArmX -= accent * 0.08;
+    pose.rightArmY += accentSide * accent * 0.16;
+    pose.rightArmZ += accentSide * accent * 0.22;
+    pose.leftLegX += accent * 0.06;
+    pose.rightLegX += accent * 0.04;
+  }
+
+  npc.group.position.y = pose.bodyY;
+  npc.group.rotation.y = pose.turn;
+  npc.group.rotation.z = pose.lean;
+
+  if (!isLookingAtPlayer) {
+    npc.joints.head.rotation.x = approachRotation(npc.joints.head.rotation.x, pose.headX, dt);
+    npc.joints.head.rotation.y = approachRotation(npc.joints.head.rotation.y, pose.headY, dt);
+  }
+
+  if (!isWavingAtPlayer) {
+    npc.joints.leftArm.rotation.x = approachRotation(
+      npc.joints.leftArm.rotation.x,
+      pose.leftArmX,
+      dt
+    );
+    npc.joints.leftArm.rotation.y = approachRotation(
+      npc.joints.leftArm.rotation.y,
+      pose.leftArmY,
+      dt
+    );
+    npc.joints.leftArm.rotation.z = approachRotation(
+      npc.joints.leftArm.rotation.z,
+      pose.leftArmZ,
+      dt
+    );
+  }
+
+  npc.joints.rightArm.rotation.x = approachRotation(
+    npc.joints.rightArm.rotation.x,
+    pose.rightArmX,
+    dt
+  );
+  npc.joints.rightArm.rotation.y = approachRotation(
+    npc.joints.rightArm.rotation.y,
+    pose.rightArmY,
+    dt
+  );
+  npc.joints.rightArm.rotation.z = approachRotation(
+    npc.joints.rightArm.rotation.z,
+    pose.rightArmZ,
+    dt
+  );
+  npc.joints.leftLeg.rotation.x = pose.leftLegX;
+  npc.joints.rightLeg.rotation.x = pose.rightLegX;
+  npc.joints.leftLeg.rotation.y = pose.leftLegY;
+  npc.joints.rightLeg.rotation.y = pose.rightLegY;
+}
+
 export class NPCManager {
   constructor(scene, audio, contactLayer = new ContactLayer()) {
     this.scene = scene;
@@ -169,6 +438,7 @@ export class NPCManager {
     this.playerPushStrength = 1.25;
     this.npcCrowdRadius = 0.58;
     this._lastPlayerPos = null;
+    this.photographerTriggerState = null;
 
     // Pre-allocate shared NPC geometries to optimize draw calls and GPU vertex buffer uploads
     this.torsoGeo = new THREE.BoxGeometry(0.44, 0.6, 0.24);
@@ -191,6 +461,27 @@ export class NPCManager {
       opacity: 0.8,
       roughness: 0.1,
       metalness: 0.95,
+    });
+
+    this.cameraBodyGeo = new THREE.BoxGeometry(0.28, 0.16, 0.12);
+    this.cameraLensGeo = new THREE.CylinderGeometry(0.06, 0.07, 0.09, 10);
+    this.cameraFlashGeo = new THREE.BoxGeometry(0.045, 0.035, 0.02);
+    this.cameraGripGeo = new THREE.BoxGeometry(0.06, 0.16, 0.08);
+    this.cameraBodyMat = new THREE.MeshStandardMaterial({
+      color: 0x111116,
+      roughness: 0.5,
+      metalness: 0.5,
+    });
+    this.cameraLensMat = new THREE.MeshStandardMaterial({
+      color: 0x050507,
+      roughness: 0.2,
+      metalness: 0.8,
+    });
+    this.cameraFlashMat = new THREE.MeshStandardMaterial({
+      color: 0xfffff2,
+      emissive: 0xffffff,
+      emissiveIntensity: 0,
+      roughness: 0.1,
     });
 
     // Preset list of safe social mingle spots where NPCs gather
@@ -242,9 +533,9 @@ export class NPCManager {
     });
   }
 
-  _syncNpcContactColliders() {
-    for (let i = 0; i < this.npcs.length; i++) {
-      const npc = this.npcs[i];
+  _syncNpcContactColliders(npcs = this.npcs) {
+    for (let i = 0; i < npcs.length; i++) {
+      const npc = npcs[i];
       if (!npc.id) npc.id = `visitor-${i}`;
       if (!npc.contactCollider) {
         npc.contactCollider = this.contactLayer.addCollider({
@@ -307,9 +598,7 @@ export class NPCManager {
       npc.group.position.set(x, 0, z);
 
       // Compute rotation to face the center of the mingle spot
-      const dx = spot.x - x;
-      const dz = spot.z - z;
-      const faceAngle = Math.atan2(-dx, -dz);
+      const faceAngle = calculateFacingAngle({ x, z }, spot);
       npc.group.rotation.y = faceAngle;
       npc.baseRotationY = faceAngle;
 
@@ -326,6 +615,11 @@ export class NPCManager {
       npc.danceType = Math.floor(this.random() * 4); // 0 to 3
       npc.dancePhase = this.random() * Math.PI * 2;
       npc.danceSpeed = 0.7 + this.random() * 0.4; // slower, relaxing motions
+      npc.danceAmplitude = 0.75 + this.random() * 0.65;
+      npc.danceEnergy = 0.8 + this.random() * 0.5;
+      npc.danceExpression =
+        this.random() < 0.35 ? 0.45 + this.random() * 0.65 : this.random() * 0.25;
+      npc.danceAccentPhase = this.random() * Math.PI * 2;
       npc.walkSpeed = 0.85 + this.random() * 0.35;
 
       // Subtle scaling variations for character heights
@@ -377,7 +671,50 @@ export class NPCManager {
     this.scene.add(doorman.group);
     this.npcs.push(doorman);
 
-    // 3. Spawn 2 Bar Patrons seated on stools (x: 7.2 & 11.4, z: 5.8)
+    // 3. Spawn 2 photographers behind the exterior velvet rope near the entrance.
+    const photographerPositions = [
+      { x: -8.35, z: -3.45 },
+      { x: -7.25, z: -3.42 },
+    ];
+    photographerPositions.forEach((pos, index) => {
+      const photographer = this._createVoxelCharacter(
+        index === 0 ? '#e5a073' : '#f5c396',
+        index === 0 ? '#1c284f' : '#5c3d28',
+        '#cda45d',
+        'jacket',
+        '#d4af37'
+      );
+      photographer.id = `photographer-${index + 1}`;
+      photographer.group.position.set(pos.x, 0, pos.z);
+      const faceAngle = calculateFacingAngle(pos, { x: pos.x, z: -2.8 });
+      photographer.group.rotation.y = faceAngle;
+      photographer.baseRotationY = faceAngle;
+      photographer.danceType = 75;
+      photographer.photographerIndex = index;
+      photographer.flashInterval = getPhotographerFlashInterval(index);
+      photographer.flashOffset = 0.35 + index * 0.45;
+      photographer.nextFlashTime = performance.now() * 0.001 + photographer.flashOffset;
+      photographer.flashUntil = 0;
+      photographer.bodyRadius = 0.3;
+      photographer.collisionRadius = 0.48;
+      photographer.pushRadius = 0.7;
+      photographer.pushWeight = 0.25;
+      this._configureNpcContact(photographer, 'photographer');
+
+      photographer.joints.leftArm.rotation.x = 0.9;
+      photographer.joints.leftArm.rotation.y = 0.55;
+      photographer.joints.leftArm.rotation.z = 0.55;
+      photographer.joints.rightArm.rotation.x = 0.9;
+      photographer.joints.rightArm.rotation.y = -0.55;
+      photographer.joints.rightArm.rotation.z = -0.55;
+      photographer.joints.head.rotation.x = -0.05;
+
+      this._attachCamera(photographer);
+      this.scene.add(photographer.group);
+      this.npcs.push(photographer);
+    });
+
+    // 4. Spawn 2 Bar Patrons seated on stools (x: 7.2 & 11.4, z: 5.8)
     const stoolPositions = [7.2, 11.4];
     stoolPositions.forEach((px) => {
       const skin = this._getRandomSkin();
@@ -417,7 +754,7 @@ export class NPCManager {
       this.npcs.push(patron);
     });
 
-    // 4. Spawn 1 Music Selector inside the turntable booth (x: 18.2, z: 0)
+    // 5. Spawn 1 Music Selector inside the turntable booth (x: 18.2, z: 0)
     const selector = this._createVoxelCharacter(
       '#f3be8a',
       '#1e1c18',
@@ -439,7 +776,7 @@ export class NPCManager {
     this.scene.add(selector.group);
     this.npcs.push(selector);
 
-    // 5. Spawn 1 Bartender behind the counter (x: 9.0, z: 8.8) facing -Z (rotation.y = 0)
+    // 6. Spawn 1 Bartender behind the counter (x: 9.0, z: 8.8) facing -Z (rotation.y = 0)
     const skin = '#fcd2a1';
     const suit = '#1c284f'; // navy blue
     const bartender = this._createVoxelCharacter(skin, suit, '#255232', 'jacket', null);
@@ -524,7 +861,7 @@ export class NPCManager {
 
     const leftArmMesh = new THREE.Mesh(this.armGeo, torsoMat);
     leftArmMesh.position.set(0, -0.22, 0); // hang down from shoulder pivot
-    leftArmMesh.castShadow = true;
+    leftArmMesh.castShadow = false;
     joints.leftArm.add(leftArmMesh);
 
     // Slap skin hand on arm bottom
@@ -539,7 +876,7 @@ export class NPCManager {
 
     const rightArmMesh = new THREE.Mesh(this.armGeo, torsoMat);
     rightArmMesh.position.set(0, -0.22, 0); // hang down
-    rightArmMesh.castShadow = true;
+    rightArmMesh.castShadow = false;
     joints.rightArm.add(rightArmMesh);
 
     const rightHand = new THREE.Mesh(this.handGeo, limbSkinMat);
@@ -554,7 +891,7 @@ export class NPCManager {
 
     const leftLegMesh = new THREE.Mesh(this.legGeo, legsMat);
     leftLegMesh.position.set(0, -0.26, 0); // hang down from hip pivot
-    leftLegMesh.castShadow = true;
+    leftLegMesh.castShadow = false;
     joints.leftLeg.add(leftLegMesh);
 
     // Shoe box
@@ -569,7 +906,7 @@ export class NPCManager {
 
     const rightLegMesh = new THREE.Mesh(this.legGeo, legsMat);
     rightLegMesh.position.set(0, -0.26, 0); // hang down
-    rightLegMesh.castShadow = true;
+    rightLegMesh.castShadow = false;
     joints.rightLeg.add(rightLegMesh);
 
     const rightShoe = new THREE.Mesh(this.shoeGeo, this.shoeMat);
@@ -591,6 +928,45 @@ export class NPCManager {
     npc.joints[armName].add(glass);
   }
 
+  _attachCamera(npc) {
+    const cameraGroup = new THREE.Group();
+    cameraGroup.position.set(0, 0.86, -0.36);
+    cameraGroup.rotation.x = 0.08;
+
+    const body = new THREE.Mesh(this.cameraBodyGeo, this.cameraBodyMat);
+    body.castShadow = false;
+    cameraGroup.add(body);
+
+    const lens = new THREE.Mesh(this.cameraLensGeo, this.cameraLensMat);
+    lens.rotation.x = Math.PI / 2;
+    lens.position.set(0, 0, -0.07);
+    lens.castShadow = false;
+    cameraGroup.add(lens);
+
+    const flash = new THREE.Mesh(this.cameraFlashGeo, this.cameraFlashMat.clone());
+    flash.position.set(0.055, 0.045, -0.06);
+    flash.visible = false;
+    cameraGroup.add(flash);
+
+    const leftGrip = new THREE.Mesh(this.cameraGripGeo, this.cameraBodyMat);
+    leftGrip.position.set(-0.17, -0.035, 0);
+    leftGrip.castShadow = false;
+    cameraGroup.add(leftGrip);
+
+    const rightGrip = new THREE.Mesh(this.cameraGripGeo, this.cameraBodyMat);
+    rightGrip.position.set(0.17, -0.035, 0);
+    rightGrip.castShadow = false;
+    cameraGroup.add(rightGrip);
+
+    const light = new THREE.PointLight(0xffffff, 0, 6, 2);
+    light.position.set(0.04, 0.04, -0.18);
+    cameraGroup.add(light);
+
+    npc.cameraFlashMesh = flash;
+    npc.cameraFlashLight = light;
+    npc.group.add(cameraGroup);
+  }
+
   /**
    * Animates arms, legs and hips dynamically matching acoustic tempo.
    */
@@ -609,16 +985,30 @@ export class NPCManager {
 
     if (playerPos) {
       this._lastPlayerPos = { x: playerPos.x, z: playerPos.z };
+      this.photographerTriggerState = updatePhotographerTriggerState(
+        this.photographerTriggerState,
+        playerPos.x
+      );
+      this.npcs.forEach((npc) => {
+        npc.updateMode = getNpcUpdateMode(npc, playerPos);
+      });
     }
 
     if (playerPos) {
       this._applyContactColliderPositions();
       this._syncNpcContactColliders();
-      this.npcs.forEach((npc) =>
-        this._applyPlayerPush(npc, playerPos, playerVelX, playerVelZ, playerSpeed, dt)
-      );
-      this._resolveNpcCrowding(dt);
-      this.npcs.forEach((npc) => this._applyAnchorReturn(npc, dt));
+      this.npcs.forEach((npc) => {
+        if ((npc.updateMode || 'full') === 'full') {
+          this._applyPlayerPush(npc, playerPos, playerVelX, playerVelZ, playerSpeed, dt);
+        }
+      });
+      const activeNpcs = this.npcs.filter((npc) => (npc.updateMode || 'full') !== 'sleep');
+      this._resolveNpcCrowding(dt, activeNpcs);
+      this.npcs.forEach((npc) => {
+        if ((npc.updateMode || 'full') !== 'sleep') {
+          this._applyAnchorReturn(npc, dt);
+        }
+      });
       this._syncNpcContactColliders();
     }
 
@@ -631,6 +1021,24 @@ export class NPCManager {
     }
 
     this.npcs.forEach((npc) => {
+      let npcDt = dt;
+      const updateMode = npc.updateMode || 'full';
+      if (updateMode === 'sleep') {
+        if (npc.danceType === 75) {
+          updatePhotographerFlash(npc, time, false);
+          if (npc.cameraFlashMesh) npc.cameraFlashMesh.visible = false;
+          if (npc.cameraFlashLight) npc.cameraFlashLight.intensity = 0;
+        }
+        return;
+      }
+
+      if (updateMode === 'poseOnly' && npc.danceType >= 0) {
+        npc.poseOnlyAccumulator = (npc.poseOnlyAccumulator || 0) + dt;
+        if (npc.poseOnlyAccumulator < 0.12) return;
+        npcDt = Math.min(0.2, npc.poseOnlyAccumulator);
+        npc.poseOnlyAccumulator = 0;
+      }
+
       // 1. DOORMAN (case -1)
       if (npc.danceType === -1) {
         let isLooking = false;
@@ -643,11 +1051,11 @@ export class NPCManager {
             let targetHeadY = targetGlobalAngle - npc.group.rotation.y;
             targetHeadY = Math.atan2(Math.sin(targetHeadY), Math.cos(targetHeadY));
             targetHeadY = Math.max(-1.3, Math.min(1.3, targetHeadY));
-            npc.joints.head.rotation.y += (targetHeadY - npc.joints.head.rotation.y) * 8.0 * dt;
+            npc.joints.head.rotation.y += (targetHeadY - npc.joints.head.rotation.y) * 8.0 * npcDt;
           }
         }
         if (!isLooking) {
-          npc.joints.head.rotation.y += (0.0 - npc.joints.head.rotation.y) * 4.0 * dt;
+          npc.joints.head.rotation.y += (0.0 - npc.joints.head.rotation.y) * 4.0 * npcDt;
         }
         return;
       }
@@ -672,7 +1080,46 @@ export class NPCManager {
         return;
       }
 
-      // 3. VINYL MUSIC SELECTOR TURNTABLE ANIMS (case 99)
+      // 3. PHOTOGRAPHERS (case 75)
+      if (npc.danceType === 75) {
+        const isPhotographing = this.photographerTriggerState?.isActive ?? false;
+        const didFlash = updatePhotographerFlash(npc, time, isPhotographing);
+        const flashActive = isPhotographing && time < (npc.flashUntil ?? 0);
+        const flashPop = flashActive ? 1 : 0;
+
+        npc.group.position.y = Math.sin(time * 2.2 + (npc.photographerIndex ?? 0)) * 0.01;
+        npc.group.rotation.y =
+          npc.baseRotationY + Math.sin(time * 1.4 + (npc.photographerIndex ?? 0)) * 0.04;
+        npc.joints.head.rotation.x = -0.08 - flashPop * 0.08;
+        npc.joints.head.rotation.y =
+          Math.sin(time * 1.1 + (npc.photographerIndex ?? 0) * 0.8) * 0.08;
+        npc.joints.leftArm.rotation.x = 0.9 + Math.sin(time * 5) * 0.012 - flashPop * 0.04;
+        npc.joints.leftArm.rotation.y = 0.55;
+        npc.joints.leftArm.rotation.z = 0.55 + flashPop * 0.04;
+        npc.joints.rightArm.rotation.x = 0.9 + Math.sin(time * 5.4) * 0.012 - flashPop * 0.04;
+        npc.joints.rightArm.rotation.y = -0.55;
+        npc.joints.rightArm.rotation.z = -0.55 - flashPop * 0.04;
+        npc.joints.leftLeg.rotation.x = Math.sin(time * 1.8) * 0.025;
+        npc.joints.rightLeg.rotation.x = -Math.sin(time * 1.8) * 0.025;
+
+        if (npc.cameraFlashMesh) {
+          npc.cameraFlashMesh.visible = flashActive;
+          if (npc.cameraFlashMesh.material) {
+            npc.cameraFlashMesh.material.emissiveIntensity = flashActive ? 4.5 : 0;
+          }
+        }
+        if (npc.cameraFlashLight) {
+          npc.cameraFlashLight.intensity = flashActive ? 7 : 0;
+        }
+        if (didFlash && npc.cameraFlashMesh) {
+          npc.cameraFlashMesh.scale.setScalar(1.35);
+        } else if (npc.cameraFlashMesh) {
+          npc.cameraFlashMesh.scale.setScalar(1);
+        }
+        return;
+      }
+
+      // 4. VINYL MUSIC SELECTOR TURNTABLE ANIMS (case 99)
       if (npc.danceType === 99) {
         const bobSpeed = 3.5;
         npc.group.position.y =
@@ -715,14 +1162,14 @@ export class NPCManager {
             const moveDirZ = moveDir.z;
             const moveSpeed = npc.walkSpeed || 1.0; // realistic walking pace
 
-            currentPos.x += moveDirX * moveSpeed * dt;
-            currentPos.z += moveDirZ * moveSpeed * dt;
+            currentPos.x += moveDirX * moveSpeed * npcDt;
+            currentPos.z += moveDirZ * moveSpeed * npcDt;
 
             const walkAngle = Math.atan2(-moveDirX, -moveDirZ);
             // Smoothly interpolate rotation to match walk direction
             let diff = walkAngle - npc.group.rotation.y;
             diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-            npc.group.rotation.y += diff * 10.0 * dt;
+            npc.group.rotation.y += diff * 10.0 * npcDt;
             npc.baseRotationY = npc.group.rotation.y;
 
             // Leg & Arm swings (opposite swing)
@@ -858,21 +1305,21 @@ export class NPCManager {
 
         // Clamp to logical neck limit +/- 75 deg (1.3 radians)
         targetHeadY = Math.max(-1.3, Math.min(1.3, targetHeadY));
-        npc.joints.head.rotation.y += (targetHeadY - npc.joints.head.rotation.y) * 8.0 * dt;
+        npc.joints.head.rotation.y += (targetHeadY - npc.joints.head.rotation.y) * 8.0 * npcDt;
 
         // Look up slightly (player camera is at y=1.7m, NPC head is at ~1.35m)
         const targetHeadX = -0.15;
-        npc.joints.head.rotation.x += (targetHeadX - npc.joints.head.rotation.x) * 8.0 * dt;
+        npc.joints.head.rotation.x += (targetHeadX - npc.joints.head.rotation.x) * 8.0 * npcDt;
 
         if (npc.danceType >= 0 && !isWalking && !npc.isSeated) {
-          npc.group.rotation.y += (targetGlobalAngle - npc.group.rotation.y) * 3.0 * dt;
+          npc.group.rotation.y += (targetGlobalAngle - npc.group.rotation.y) * 3.0 * npcDt;
           npc.baseRotationY = npc.group.rotation.y;
         }
       } else {
         // Return head to center smoothly if walking or standing (or let the dance loop handle it)
         if (isWalking) {
-          npc.joints.head.rotation.y += (0 - npc.joints.head.rotation.y) * 5.0 * dt;
-          npc.joints.head.rotation.x += (0 - npc.joints.head.rotation.x) * 5.0 * dt;
+          npc.joints.head.rotation.y += (0 - npc.joints.head.rotation.y) * 5.0 * npcDt;
+          npc.joints.head.rotation.x += (0 - npc.joints.head.rotation.x) * 5.0 * npcDt;
         }
       }
 
@@ -881,9 +1328,9 @@ export class NPCManager {
         // Wave left hand
         const waveX = -0.6;
         const waveZ = -1.2 + Math.sin(time * 12.0) * 0.35; // friendly rapid hand wave
-        npc.joints.leftArm.rotation.x += (waveX - npc.joints.leftArm.rotation.x) * 8.0 * dt;
-        npc.joints.leftArm.rotation.z += (waveZ - npc.joints.leftArm.rotation.z) * 8.0 * dt;
-        npc.joints.leftArm.rotation.y += (0.0 - npc.joints.leftArm.rotation.y) * 8.0 * dt;
+        npc.joints.leftArm.rotation.x += (waveX - npc.joints.leftArm.rotation.x) * 8.0 * npcDt;
+        npc.joints.leftArm.rotation.z += (waveZ - npc.joints.leftArm.rotation.z) * 8.0 * npcDt;
+        npc.joints.leftArm.rotation.y += (0.0 - npc.joints.leftArm.rotation.y) * 8.0 * npcDt;
       }
 
       // Skip the rest of the dance motion loop if we are walking
@@ -895,173 +1342,40 @@ export class NPCManager {
 
         if (!isLookingAtPlayer) {
           npc.joints.head.rotation.y +=
-            (Math.sin(time * 0.3 + npc.dancePhase) * 0.1 - npc.joints.head.rotation.y) * 4.0 * dt;
+            (Math.sin(time * 0.3 + npc.dancePhase) * 0.1 - npc.joints.head.rotation.y) *
+            4.0 *
+            npcDt;
         }
 
         if (!isWavingAtPlayer) {
           npc.joints.leftArm.rotation.x +=
             (Math.sin(time * 0.4 + npc.dancePhase) * 0.06 - npc.joints.leftArm.rotation.x) *
             4.0 *
-            dt;
-          npc.joints.leftArm.rotation.z += (0.0 - npc.joints.leftArm.rotation.z) * 4.0 * dt;
-          npc.joints.leftArm.rotation.y += (0.0 - npc.joints.leftArm.rotation.y) * 4.0 * dt;
+            npcDt;
+          npc.joints.leftArm.rotation.z += (0.0 - npc.joints.leftArm.rotation.z) * 4.0 * npcDt;
+          npc.joints.leftArm.rotation.y += (0.0 - npc.joints.leftArm.rotation.y) * 4.0 * npcDt;
         }
         return;
       }
 
       // 5. LOUNGE VISITORS DANCE/SWAY MOTIONS (beat synced)
-      const speedMult = npc.danceSpeed;
-      const phase = npc.dancePhase;
-
-      switch (npc.danceType) {
-        case 0: // "THE CHILL CHATTERER"
-          npc.group.position.y =
-            Math.abs(Math.sin(time * 1.2 * speedMult + phase)) * 0.015 - this.beatIntensity * 0.04;
-          npc.group.rotation.y =
-            npc.baseRotationY + Math.sin(time * 0.8 * speedMult + phase) * 0.12;
-
-          if (!isLookingAtPlayer) {
-            npc.joints.head.rotation.x +=
-              (Math.sin(time * 1.2 * speedMult + phase) * 0.05 +
-                this.beatIntensity * 0.12 -
-                npc.joints.head.rotation.x) *
-              6.0 *
-              dt;
-            npc.joints.head.rotation.y +=
-              (Math.sin(time * 1.5 + phase) * 0.22 - npc.joints.head.rotation.y) * 6.0 * dt;
-          }
-
-          if (!isWavingAtPlayer) {
-            npc.joints.leftArm.rotation.x +=
-              (-0.1 +
-                Math.sin(time * 1.0 + phase) * 0.05 -
-                this.beatIntensity * 0.08 -
-                npc.joints.leftArm.rotation.x) *
-              6.0 *
-              dt;
-            npc.joints.leftArm.rotation.z += (0.0 - npc.joints.leftArm.rotation.z) * 6.0 * dt;
-            npc.joints.leftArm.rotation.y += (0.0 - npc.joints.leftArm.rotation.y) * 6.0 * dt;
-          }
-          npc.joints.rightArm.rotation.x +=
-            (-0.1 +
-              Math.cos(time * 1.0 + phase) * 0.05 -
-              this.beatIntensity * 0.08 -
-              npc.joints.rightArm.rotation.x) *
-            6.0 *
-            dt;
-
-          npc.joints.leftLeg.rotation.x = Math.sin(time * 1.2 * speedMult + phase) * 0.04;
-          npc.joints.rightLeg.rotation.x = -Math.sin(time * 1.2 * speedMult + phase) * 0.04;
-          break;
-
-        case 1: // "THE COZY SWAYER"
-          npc.group.position.y =
-            Math.sin(time * 1.5 * speedMult + phase) * 0.015 - this.beatIntensity * 0.045;
-          npc.group.rotation.z =
-            Math.sin(time * 1.5 * speedMult + phase) * 0.08 +
-            this.beatIntensity * 0.06 * Math.sin(phase);
-          npc.group.rotation.y = npc.baseRotationY;
-
-          if (!isLookingAtPlayer) {
-            npc.joints.head.rotation.x +=
-              (Math.abs(Math.sin(time * 1.5 * speedMult + phase)) * 0.1 +
-                this.beatIntensity * 0.18 -
-                npc.joints.head.rotation.x) *
-              6.0 *
-              dt;
-            npc.joints.head.rotation.y += (0.0 - npc.joints.head.rotation.y) * 6.0 * dt;
-          }
-
-          if (!isWavingAtPlayer) {
-            npc.joints.leftArm.rotation.z +=
-              (-0.4 +
-                Math.sin(time * 1.2 + phase) * 0.08 -
-                this.beatIntensity * 0.05 -
-                npc.joints.leftArm.rotation.z) *
-              6.0 *
-              dt;
-            npc.joints.leftArm.rotation.x += (0.0 - npc.joints.leftArm.rotation.x) * 6.0 * dt;
-            npc.joints.leftArm.rotation.y += (0.0 - npc.joints.leftArm.rotation.y) * 6.0 * dt;
-          }
-          npc.joints.rightArm.rotation.z +=
-            (0.4 +
-              Math.cos(time * 1.2 + phase) * 0.08 +
-              this.beatIntensity * 0.05 -
-              npc.joints.rightArm.rotation.z) *
-            6.0 *
-            dt;
-
-          npc.joints.leftLeg.rotation.y = Math.sin(time * 1.2 + phase) * 0.08;
-          break;
-
-        case 2: // "THE RHYTHMIC NODDER"
-          npc.group.position.y = -this.beatIntensity * 0.04;
-          npc.group.rotation.y = npc.baseRotationY;
-
-          if (!isLookingAtPlayer) {
-            npc.joints.head.rotation.x +=
-              (Math.abs(Math.sin(time * 2.2 * speedMult + phase)) * 0.24 +
-                this.beatIntensity * 0.35 -
-                npc.joints.head.rotation.x) *
-              6.0 *
-              dt;
-            npc.joints.head.rotation.y += (0.0 - npc.joints.head.rotation.y) * 6.0 * dt;
-          }
-
-          npc.joints.leftLeg.rotation.x =
-            Math.max(0, Math.sin(time * 4.4 * speedMult + phase)) * 0.1 + this.beatIntensity * 0.22;
-
-          if (!isWavingAtPlayer) {
-            npc.joints.leftArm.rotation.x +=
-              (-0.15 - this.beatIntensity * 0.1 - npc.joints.leftArm.rotation.x) * 6.0 * dt;
-            npc.joints.leftArm.rotation.z += (0.0 - npc.joints.leftArm.rotation.z) * 6.0 * dt;
-            npc.joints.leftArm.rotation.y += (0.0 - npc.joints.leftArm.rotation.y) * 6.0 * dt;
-          }
-          npc.joints.rightArm.rotation.x +=
-            (-0.15 - this.beatIntensity * 0.1 - npc.joints.rightArm.rotation.x) * 6.0 * dt;
-          break;
-
-        case 3: // "THE CONVERSATIONALIST"
-          npc.group.position.y = Math.sin(time * 1.0 + phase) * 0.008 - this.beatIntensity * 0.035;
-          npc.group.rotation.y =
-            npc.baseRotationY +
-            Math.sin(time * 0.4 + phase) * 0.06 +
-            Math.sin(time * 2.0) * 0.08 * this.beatIntensity;
-
-          if (!isLookingAtPlayer) {
-            npc.joints.head.rotation.x += (0.0 - npc.joints.head.rotation.x) * 6.0 * dt;
-            npc.joints.head.rotation.y += (0.0 - npc.joints.head.rotation.y) * 6.0 * dt;
-          }
-
-          if (!isWavingAtPlayer) {
-            npc.joints.leftArm.rotation.x +=
-              (-0.3 +
-                Math.sin(time * 1.8 + phase) * 0.14 -
-                this.beatIntensity * 0.18 -
-                npc.joints.leftArm.rotation.x) *
-              6.0 *
-              dt;
-            npc.joints.leftArm.rotation.z +=
-              (-0.15 + Math.cos(time * 1.2 + phase) * 0.08 - npc.joints.leftArm.rotation.z) *
-              6.0 *
-              dt;
-            npc.joints.leftArm.rotation.y += (0.0 - npc.joints.leftArm.rotation.y) * 6.0 * dt;
-          }
-          npc.joints.rightArm.rotation.x +=
-            (-0.15 - this.beatIntensity * 0.12 - npc.joints.rightArm.rotation.x) * 6.0 * dt;
-          npc.joints.rightArm.rotation.z += (0.15 - npc.joints.rightArm.rotation.z) * 6.0 * dt;
-          break;
-      }
+      applyStandingDanceMotion(npc, {
+        beatIntensity: this.beatIntensity,
+        dt: npcDt,
+        isLookingAtPlayer,
+        isWavingAtPlayer,
+        time,
+      });
     });
   }
 
   /**
    * Resolves NPC to NPC personal-space overlap for social movement clarity.
    */
-  _resolveNpcCrowding(dt = 1 / 60) {
-    this._syncNpcContactColliders();
+  _resolveNpcCrowding(dt = 1 / 60, npcs = this.npcs) {
+    this._syncNpcContactColliders(npcs);
     this.contactLayer.resolveDynamicContacts('npc');
-    for (const npc of this.npcs) {
+    for (const npc of npcs) {
       if (!npc.contactCollider) continue;
       const blend = Math.min(1, Math.max(0.25, dt * 12));
       npc.group.position.x += (npc.contactCollider.position.x - npc.group.position.x) * blend;
@@ -1188,6 +1502,13 @@ export class NPCManager {
     if (this.shoeMat) this.shoeMat.dispose();
     if (this.glassGeo) this.glassGeo.dispose();
     if (this.glassMat) this.glassMat.dispose();
+    if (this.cameraBodyGeo) this.cameraBodyGeo.dispose();
+    if (this.cameraLensGeo) this.cameraLensGeo.dispose();
+    if (this.cameraFlashGeo) this.cameraFlashGeo.dispose();
+    if (this.cameraGripGeo) this.cameraGripGeo.dispose();
+    if (this.cameraBodyMat) this.cameraBodyMat.dispose();
+    if (this.cameraLensMat) this.cameraLensMat.dispose();
+    if (this.cameraFlashMat) this.cameraFlashMat.dispose();
 
     this.npcs.forEach((npc) => {
       npc.group.traverse((child) => {
@@ -1200,19 +1521,35 @@ export class NPCManager {
             child.geometry !== this.handGeo &&
             child.geometry !== this.legGeo &&
             child.geometry !== this.shoeGeo &&
-            child.geometry !== this.glassGeo
+            child.geometry !== this.glassGeo &&
+            child.geometry !== this.cameraBodyGeo &&
+            child.geometry !== this.cameraLensGeo &&
+            child.geometry !== this.cameraFlashGeo &&
+            child.geometry !== this.cameraGripGeo
           ) {
             child.geometry.dispose();
           }
           if (child.material) {
             if (Array.isArray(child.material)) {
               child.material.forEach((mat) => {
-                if (mat !== this.shoeMat && mat !== this.glassMat) {
+                if (
+                  mat !== this.shoeMat &&
+                  mat !== this.glassMat &&
+                  mat !== this.cameraBodyMat &&
+                  mat !== this.cameraLensMat &&
+                  mat !== this.cameraFlashMat
+                ) {
                   if (mat.map) mat.map.dispose();
                   mat.dispose();
                 }
               });
-            } else if (child.material !== this.shoeMat && child.material !== this.glassMat) {
+            } else if (
+              child.material !== this.shoeMat &&
+              child.material !== this.glassMat &&
+              child.material !== this.cameraBodyMat &&
+              child.material !== this.cameraLensMat &&
+              child.material !== this.cameraFlashMat
+            ) {
               if (child.material.map) child.material.map.dispose();
               child.material.dispose();
             }

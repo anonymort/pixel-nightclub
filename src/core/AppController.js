@@ -44,6 +44,7 @@ export function createAppController(options) {
     globalTarget.sceneManager = sceneManager;
     globalTarget.audioManager = audioManager;
     globalTarget.controlsManager = controlsManager;
+    globalTarget.performanceManager = sceneManager.performanceManager;
   }
 
   sceneManager.addUpdatable(controlsManager);
@@ -51,6 +52,9 @@ export function createAppController(options) {
   sceneManager.addUpdatable(chandelier);
   sceneManager.addUpdatable(npcManager);
   sceneManager.addUpdatable(uiManager);
+  if (typeof mapBuilder.update === 'function') {
+    sceneManager.addUpdatable(mapBuilder);
+  }
 
   const coordinateObserverNode = {
     update: () => {
@@ -84,6 +88,8 @@ export function createAppController(options) {
     audioManager,
     controlsManager,
     mapBuilder,
+    performanceManager: sceneManager.performanceManager,
+    performance: sceneManager.performanceManager,
     lightingManager,
     chandelier,
     npcManager,

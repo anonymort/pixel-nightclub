@@ -2,6 +2,37 @@ import * as THREE from 'three';
 import { getGameplayRandom } from '../config/experience.js';
 import { TextureGenerator } from '../utils/TextureGenerator.js';
 
+const WORLD_SECTION_BOUNDS = {
+  exteriorDecor: { minX: -25, maxX: -4.2, minZ: -15, maxZ: 15 },
+  barDecor: { minX: 3.5, maxX: 14.5, minZ: 3.2, maxZ: 11.6 },
+  loungeDecor: { minX: 5.4, maxX: 20.4, minZ: -21.4, maxZ: -9.4 },
+  cloakroomDecor: { minX: -4.8, maxX: 1.2, minZ: 3.2, maxZ: 15.2 },
+  musicBoothDecor: { minX: 11.8, maxX: 20.4, minZ: -7.0, maxZ: 4.4 },
+};
+
+const DEFAULT_ASSET_PRELOAD_MARGIN = 12;
+
+export function getActiveWorldSections(playerPos, preloadMargin = DEFAULT_ASSET_PRELOAD_MARGIN) {
+  const active = new Set(['core']);
+  if (!playerPos) {
+    for (const section of Object.keys(WORLD_SECTION_BOUNDS)) active.add(section);
+    return active;
+  }
+
+  for (const [section, bounds] of Object.entries(WORLD_SECTION_BOUNDS)) {
+    if (
+      playerPos.x >= bounds.minX - preloadMargin &&
+      playerPos.x <= bounds.maxX + preloadMargin &&
+      playerPos.z >= bounds.minZ - preloadMargin &&
+      playerPos.z <= bounds.maxZ + preloadMargin
+    ) {
+      active.add(section);
+    }
+  }
+
+  return active;
+}
+
 export class MapBuilder {
   /**
    * @param {THREE.Scene} scene - Target scene
@@ -12,6 +43,12 @@ export class MapBuilder {
     this.controls = controls;
     this.random = getGameplayRandom();
     this.colliderDebugMeshes = [];
+    this.performanceLabel = 'map';
+    this.sectionGroups = new Map();
+    this.currentSection = 'core';
+    this.activeSections = new Set();
+    this.lazySectionBuilders = new Map();
+    this.builtSections = new Set(['core']);
 
     // Caches to prevent redundant geometry allocations
     this.geometryCache = new Map();
@@ -27,6 +64,31 @@ export class MapBuilder {
 
     // Floor meshes requiring beat sync (pulsing dance floor grid)
     this.danceTiles = [];
+  }
+
+  _getSectionGroup(section = 'core') {
+    if (!this.sectionGroups.has(section)) {
+      const group = new THREE.Group();
+      group.name = `section:${section}`;
+      this.sectionGroups.set(section, group);
+      this.scene.add(group);
+    }
+    return this.sectionGroups.get(section);
+  }
+
+  _withSection(section, buildFn) {
+    const previousSection = this.currentSection;
+    this.currentSection = section;
+    try {
+      return buildFn();
+    } finally {
+      this.currentSection = previousSection;
+    }
+  }
+
+  _addObject(object, section = this.currentSection) {
+    this._getSectionGroup(section).add(object);
+    return object;
   }
 
   /**
@@ -311,7 +373,7 @@ export class MapBuilder {
     mesh.castShadow = castShadow;
     mesh.receiveShadow = receiveShadow;
 
-    this.scene.add(mesh);
+    this._addObject(mesh);
 
     if (isSolid) {
       // Create Box3 and register with the controls collision array
@@ -322,7 +384,18 @@ export class MapBuilder {
     return mesh;
   }
 
-  _buildClimbableBox(w, h, d, x, y, z, material, isSolid = true, castShadow = true, receiveShadow = true) {
+  _buildClimbableBox(
+    w,
+    h,
+    d,
+    x,
+    y,
+    z,
+    material,
+    isSolid = true,
+    castShadow = true,
+    receiveShadow = true
+  ) {
     const mesh = this._buildBox(w, h, d, x, y, z, material, false, castShadow, receiveShadow);
     if (isSolid && this.controls?.registerClimbableBox) {
       this.controls.registerClimbableBox(new THREE.Box3().setFromObject(mesh));
@@ -340,7 +413,7 @@ export class MapBuilder {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
 
-    this.scene.add(mesh);
+    this._addObject(mesh);
 
     if (isSolid) {
       const bbox = new THREE.Box3().setFromObject(mesh);
@@ -391,7 +464,7 @@ export class MapBuilder {
       ];
       const geometry = new THREE.BufferGeometry().setFromPoints(points);
       const outline = new THREE.Line(geometry, material);
-      this.scene.add(outline);
+      this._addObject(outline, 'core');
       this.colliderDebugMeshes.push(outline);
     }
     return this.colliderDebugMeshes;
@@ -404,14 +477,30 @@ export class MapBuilder {
     this._buildFloors();
     this._buildOuterWalls();
     this._buildInteriorWalls();
-    this._buildBarArea();
-    this._buildMusicSelectorBooth();
-    this._buildChilloutLounge();
-    this._buildCloakroom();
-    this._buildExteriorQueue();
+    this.lazySectionBuilders.set('barDecor', () => this._buildBarArea());
+    this.lazySectionBuilders.set('musicBoothDecor', () => this._buildMusicSelectorBooth());
+    this.lazySectionBuilders.set('loungeDecor', () => this._buildChilloutLounge());
+    this.lazySectionBuilders.set('cloakroomDecor', () => this._buildCloakroom());
+    this.lazySectionBuilders.set('exteriorDecor', () => this._buildExteriorQueue());
     this._buildPillars();
     this._buildDecorations();
     this._buildRoof();
+    this.update(0, { x: -13, z: 0 });
+  }
+
+  update(_dt, playerPos) {
+    const activeSections = getActiveWorldSections(playerPos);
+    for (const section of activeSections) {
+      const buildSection = this.lazySectionBuilders.get(section);
+      if (buildSection && !this.builtSections.has(section)) {
+        this._withSection(section, buildSection);
+        this.builtSections.add(section);
+      }
+    }
+    for (const [section, group] of this.sectionGroups.entries()) {
+      group.visible = activeSections.has(section);
+    }
+    this.activeSections = activeSections;
   }
 
   /**
@@ -481,17 +570,36 @@ export class MapBuilder {
       this.tileMaterials.push(tileMat);
     }
 
+    const tileGeometry = this._getBoxGeometry(tileW - 0.08, 0.05, tileD - 0.08);
+    const tileMatricesByMaterial = this.tileMaterials.map(() => []);
+    const tileMatrix = new THREE.Matrix4();
+
     for (let c = 0; c < gridCols; c++) {
       for (let r = 0; r < gridRows; r++) {
         const x = startX + c * tileW;
         const z = startZ + r * tileD;
 
         // Randomly assign one of the 8 shared materials
-        const tileMat = this.tileMaterials[Math.floor(this.random() * this.tileMaterials.length)];
-
-        this._buildBox(tileW - 0.08, 0.05, tileD - 0.08, x, 0.025, z, tileMat, false, false, true);
+        const tileMaterialIndex = Math.floor(this.random() * this.tileMaterials.length);
+        tileMatrix.makeTranslation(x, 0.025, z);
+        tileMatricesByMaterial[tileMaterialIndex].push(tileMatrix.clone());
       }
     }
+
+    tileMatricesByMaterial.forEach((matrices, materialIndex) => {
+      if (matrices.length === 0) return;
+      const tiles = new THREE.InstancedMesh(
+        tileGeometry,
+        this.tileMaterials[materialIndex],
+        matrices.length
+      );
+      tiles.castShadow = false;
+      tiles.receiveShadow = true;
+      matrices.forEach((matrix, index) => tiles.setMatrixAt(index, matrix));
+      tiles.instanceMatrix.needsUpdate = true;
+      this._addObject(tiles);
+      this.danceTiles.push(tiles);
+    });
   }
 
   /**
@@ -930,7 +1038,7 @@ export class MapBuilder {
       const ballGeo = new THREE.SphereGeometry(0.07, 8, 8);
       const ballMesh = new THREE.Mesh(ballGeo, this.materials.goldMetal);
       ballMesh.position.set(px, 1.04, postZ);
-      this.scene.add(ballMesh);
+      this._addObject(ballMesh);
     }
 
     // Hang velvet ropes between posts

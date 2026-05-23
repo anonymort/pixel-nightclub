@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PerformanceManager } from './PerformanceManager.js';
 
 function disposeMaterial(material) {
   for (const value of Object.values(material)) {
@@ -95,6 +96,13 @@ export class SceneManager {
 
     // Append the canvas to the DOM
     this.container.appendChild(this.renderer.domElement);
+
+    const search = window.location?.search || '';
+    this.performanceManager = new PerformanceManager(this.renderer, this.scene, {
+      devicePixelRatio: window.devicePixelRatio || 1,
+      enabled: search.includes('perf=1'),
+    });
+    this.performanceManager.applyQualityTier('high');
   }
 
   /**
@@ -232,6 +240,7 @@ export class SceneManager {
       window.removeEventListener('resize', this._onResize);
     }
     disposeObjectTree(this.scene);
+    this.performanceManager?.dispose();
     if (this.renderer) {
       this.renderer.dispose();
       removeRendererCanvas(this.renderer);
@@ -243,9 +252,17 @@ export class SceneManager {
    * @param {number} deltaTime - Time elapsed since the last frame (in seconds).
    */
   update(deltaTime) {
+    this.performanceManager?.beginFrame(deltaTime);
+
     // Run updates on all active system components (controls, light rigs, NPCs, passing camera position)
     for (let i = 0; i < this.updatables.length; i++) {
-      this.updatables[i].update(deltaTime, this.camera.position);
+      const updatable = this.updatables[i];
+      const startedAt = performance.now();
+      updatable.update(deltaTime, this.camera.position);
+      this.performanceManager?.recordUpdate(
+        updatable.performanceLabel || updatable.constructor?.name || `updatable-${i}`,
+        performance.now() - startedAt
+      );
     }
 
     // Smoothly transition environment sky and fog between dusky golden-hour sunset and smoky lounge darkness
@@ -268,6 +285,7 @@ export class SceneManager {
 
     // Render WebGL Viewport
     this.renderer.render(this.scene, this.camera);
+    this.performanceManager?.endFrame();
   }
 
   /**

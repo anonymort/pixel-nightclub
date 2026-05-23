@@ -16,6 +16,10 @@ export class LightingManager {
     this.flickerTimer = 0;
     this.fireTimer = 0;
     this.lanternFlickerTimer = 0;
+    this._scratchTarget = new THREE.Vector3();
+    this._scratchDirection = new THREE.Vector3();
+    this._scratchDefaultDirection = new THREE.Vector3(0, -1, 0);
+    this._scratchQuaternion = new THREE.Quaternion();
 
     this._initEnvironmentLights();
     this._initHallSpotlights();
@@ -356,12 +360,14 @@ export class LightingManager {
       spot.target.position.set(targetX, 0, targetZ);
 
       // Update volumetric beam orientation
-      const targetVec = new THREE.Vector3(targetX, 0, targetZ);
-      const directionVec = new THREE.Vector3().subVectors(targetVec, spot.beam.position);
+      const targetVec = this._scratchTarget.set(targetX, 0, targetZ);
+      const directionVec = this._scratchDirection.subVectors(targetVec, spot.beam.position);
       directionVec.normalize();
 
-      const defaultDir = new THREE.Vector3(0, -1, 0);
-      const quat = new THREE.Quaternion().setFromUnitVectors(defaultDir, directionVec);
+      const quat = this._scratchQuaternion.setFromUnitVectors(
+        this._scratchDefaultDirection,
+        directionVec
+      );
       spot.beam.quaternion.copy(quat);
 
       // Beat-synced spotlight flare and volumetric thickness pulse

@@ -12,6 +12,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "qa:screenshots": "node take_screenshots.js",
+    "qa:perf": "node perf_smoke.js",
     "qa:tour": "node record_tour.js",
     "qa:video": "node record_video.js"
   },
