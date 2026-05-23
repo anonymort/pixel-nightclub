@@ -1,3 +1,5 @@
+import { requestPointerLockSafely } from '../core/ControlsManager.js';
+
 export class UIManager {
   /**
    * @param {AudioManager} audio - Reference to active audio manager
@@ -9,6 +11,7 @@ export class UIManager {
 
     this.lastRoomName = '';
     this.promptTimeoutId = null;
+    this.pointerLockTimeoutId = null;
 
     this._bindElements();
     this._installEventHandlers();
@@ -38,7 +41,7 @@ export class UIManager {
    */
   _installEventHandlers() {
     if (this.btnStart) {
-      this.btnStart.addEventListener('click', async () => {
+      this._onStartClick = async () => {
         // 1. Initialize synthesized audio
         await this.audio.start();
 
@@ -48,20 +51,22 @@ export class UIManager {
         }
 
         // 3. Immediately request Pointer Lock to lock user input
-        setTimeout(() => {
+        this.pointerLockTimeoutId = setTimeout(() => {
           if (this.controls && !this.controls.isLocked) {
-            this.controls.domElement.requestPointerLock();
+            requestPointerLockSafely(this.controls.domElement);
           }
         }, 500);
 
         // 4. Fire initial welcome notification
         this._showFloatingPrompt('VIP MEMBERS ADMITTED — SECTOR 04', 3000);
-      });
+      };
+
+      this.btnStart.addEventListener('click', this._onStartClick);
     }
   }
 
   /**
-   * Shows a gorgeous neon banner in the middle of the screen for room alerts.
+   * Shows a warm banner in the middle of the screen for room alerts.
    */
   _showFloatingPrompt(text, duration = 2000) {
     if (!this.prompt) return;
@@ -117,5 +122,15 @@ export class UIManager {
         this.beatPulse.style.backgroundColor = '#9e0030'; // Dark red rest
       }
     }
+  }
+
+  dispose() {
+    if (this.btnStart && this._onStartClick) {
+      this.btnStart.removeEventListener('click', this._onStartClick);
+    }
+    clearTimeout(this.promptTimeoutId);
+    clearTimeout(this.pointerLockTimeoutId);
+    this.promptTimeoutId = null;
+    this.pointerLockTimeoutId = null;
   }
 }

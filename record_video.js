@@ -1,8 +1,13 @@
 import puppeteer from 'puppeteer';
 import path from 'path';
 import fs from 'fs';
+import {
+  TOUR_KEYFRAMES,
+  VISUAL_QA_BASE_URL,
+  resolveArtifactPath,
+} from './src/config/experience.js';
 
-const outPath = '/Users/matt/.gemini/antigravity/brain/36faef96-870a-4f97-9dd8-8980282109da/walkthrough.webm';
+const outPath = resolveArtifactPath('walkthrough.webm');
 
 async function enableVisualQaMode(page) {
   await page.addStyleTag({
@@ -23,7 +28,7 @@ async function enableVisualQaMode(page) {
         visibility: hidden !important;
         pointer-events: none !important;
       }
-    `
+    `,
   });
 }
 
@@ -31,28 +36,31 @@ async function run() {
   console.log('Launching headless browser for cinematic video recording...');
   const browser = await puppeteer.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--use-fake-ui-for-media-stream']
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--use-fake-ui-for-media-stream'],
   });
   const page = await browser.newPage();
-  
+
   // Set to HD 720p viewport
   await page.setViewport({ width: 1280, height: 720 });
-  
-  console.log('Navigating to http://localhost:5173/...');
-  await page.goto('http://localhost:5173/', { waitUntil: 'networkidle2' });
-  
+
+  const qaUrl = new URL(VISUAL_QA_BASE_URL);
+  qaUrl.searchParams.set('visualQaSeed', 'video');
+  console.log(`Navigating to ${qaUrl.toString()}...`);
+  await page.goto(qaUrl.toString(), { waitUntil: 'networkidle2' });
+
   console.log('Waiting for entrance button...');
   await page.waitForSelector('#btn-start');
   console.log('Clicking entrance button to activate scene and audio...');
   await page.click('#btn-start');
   await enableVisualQaMode(page);
-  
+
   // Wait 4 seconds for procedural geometry to compile and materials to initialize
   console.log('Allowing scene to initialize (4 seconds)...');
-  await new Promise(resolve => setTimeout(resolve, 4000));
-  
+  await new Promise((resolve) => setTimeout(resolve, 4000));
+
   console.log('Starting smooth cinematic canvas recording...');
-  await page.evaluate(() => {
+  const keyframes = TOUR_KEYFRAMES.map(({ pos, target }) => ({ pos, target }));
+  await page.evaluate((keyframes) => {
     return new Promise((resolve) => {
       const canvas = window.sceneManager.renderer.domElement;
       if (!canvas) {
@@ -60,33 +68,33 @@ async function run() {
         resolve();
         return;
       }
-      
+
       // Stop the standard FPS player controller updatable to let cinematic camera take over
       if (window.controlsManager) {
         window.sceneManager.removeUpdatable(window.controlsManager);
       }
-      
+
       // Capture stream from canvas at solid 30 fps
       const stream = canvas.captureStream(30);
-      
+
       // Initialize MediaRecorder
       let mediaRecorder;
       const options = { mimeType: 'video/webm;codecs=vp9' };
       try {
         mediaRecorder = new MediaRecorder(stream, options);
         console.log('Using vp9 codec for video recording.');
-      } catch (e) {
+      } catch {
         mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
         console.log('Falling back to standard webm codec for video recording.');
       }
-      
+
       const chunks = [];
       mediaRecorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
           chunks.push(event.data);
         }
       };
-      
+
       mediaRecorder.onstop = () => {
         console.log('Recording stopped. Compiling final video Blob...');
         const blob = new Blob(chunks, { type: 'video/webm' });
@@ -97,73 +105,16 @@ async function run() {
           console.log('Video compilation complete. Base64 payload stored.');
         };
       };
-      
-      // Cinematic keyframes: the 12 tour viewpoints plus one transition-only waypoint
-      // to avoid wall-facing interpolation between the lounge art wall and DJ booth.
-      const keyframes = [
-        {
-          pos: { x: -16.0, y: 1.75, z: -5.4 },
-          target: { x: -5.6, y: 1.85, z: -2.2 }
-        },
-        {
-          pos: { x: -8.8, y: 1.7, z: -1.6 },
-          target: { x: -3.8, y: 1.75, z: 0.4 }
-        },
-        {
-          pos: { x: -4.5, y: 1.7, z: 0.0 },
-          target: { x: -1.0, y: 1.7, z: 3.0 }
-        },
-        {
-          pos: { x: -3.5, y: 1.7, z: 6.0 },
-          target: { x: 1.0, y: 1.7, z: 6.0 }
-        },
-        {
-          pos: { x: -0.6, y: 1.7, z: 5.4 },
-          target: { x: -4.4, y: 1.55, z: 7.0 }
-        },
-        {
-          pos: { x: -1.0, y: 1.7, z: 1.0 },
-          target: { x: 4.0, y: 1.7, z: 0.0 }
-        },
-        {
-          pos: { x: 4.2, y: 1.7, z: 7.8 },
-          target: { x: 12.0, y: 1.75, z: 8.8 }
-        },
-        {
-          pos: { x: 5.8, y: 1.7, z: 1.4 },
-          target: { x: 11.6, y: 2.7, z: -2.4 }
-        },
-        {
-          pos: { x: 9.0, y: 1.7, z: -11.0 },
-          target: { x: 13.0, y: 1.7, z: -16.0 }
-        },
-        {
-          pos: { x: 8.2, y: 1.7, z: -13.0 },
-          target: { x: 13.0, y: 1.45, z: -20.2 }
-        },
-        {
-          pos: { x: 13.2, y: 1.7, z: -14.0 },
-          target: { x: 19.5, y: 1.65, z: -15.0 }
-        },
-        {
-          pos: { x: 12.2, y: 1.7, z: -6.5 },
-          target: { x: 16.0, y: 1.6, z: -3.0 }
-        },
-        {
-          pos: { x: 13.0, y: 1.7, z: -1.4 },
-          target: { x: 18.0, y: 1.55, z: 0.0 }
-        }
-      ];
-      
+
       const segmentDuration = 2.5; // 2.5 seconds per transition segment
       const totalDuration = segmentDuration * (keyframes.length - 1);
       let elapsed = 0;
-      
+
       // Add a custom cinematic camera updatable into the render loop
       const cinematicController = {
         update: (dt) => {
           elapsed += dt;
-          
+
           if (elapsed >= totalDuration) {
             elapsed = totalDuration;
             // Unregister and stop recorder once target is hit
@@ -171,50 +122,52 @@ async function run() {
             mediaRecorder.stop();
             return;
           }
-          
+
           const u = (elapsed / totalDuration) * (keyframes.length - 1);
           const idx = Math.floor(u);
           const nextIdx = Math.min(idx + 1, keyframes.length - 1);
           const fraction = u - idx;
-          
+
           // Cosine interpolation for ultra-smooth easing
           const f = (1 - Math.cos(fraction * Math.PI)) / 2;
-          
+
           const k1 = keyframes[idx];
           const k2 = keyframes[nextIdx];
-          
+
           const pos = {
             x: k1.pos.x * (1 - f) + k2.pos.x * f,
             y: k1.pos.y * (1 - f) + k2.pos.y * f,
-            z: k1.pos.z * (1 - f) + k2.pos.z * f
+            z: k1.pos.z * (1 - f) + k2.pos.z * f,
           };
-          
+
           const target = {
             x: k1.target.x * (1 - f) + k2.target.x * f,
             y: k1.target.y * (1 - f) + k2.target.y * f,
-            z: k1.target.z * (1 - f) + k2.target.z * f
+            z: k1.target.z * (1 - f) + k2.target.z * f,
           };
-          
+
           window.sceneManager.camera.position.set(pos.x, pos.y, pos.z);
           window.sceneManager.camera.lookAt(target.x, target.y, target.z);
           window.sceneManager.camera.updateMatrixWorld(true);
           window.sceneManager.camera.updateProjectionMatrix();
-        }
+        },
       };
-      
+
       // Start recording and inject controllers
       mediaRecorder.start();
       window.sceneManager.addUpdatable(cinematicController);
-      console.log(`Cinematic sweep started. Sweeping through 12 keyframes over ${totalDuration} seconds...`);
+      console.log(
+        `Cinematic sweep started. Sweeping through ${keyframes.length} keyframes over ${totalDuration} seconds...`
+      );
       resolve();
     });
-  });
-  
+  }, keyframes);
+
   // Wait for recording duration plus some buffer for the FileReader compilation
-  console.log('Sweeping club... Please wait while video is recorded...');
-  // 12 transitions * 2.5s = 30s total duration. Wait 31 seconds for capture and flush.
-  await new Promise(resolve => setTimeout(resolve, 31000));
-  
+  console.log('Sweeping the retreat... Please wait while video is recorded...');
+  const recordingWaitMs = (keyframes.length - 1) * 2500 + 1000;
+  await new Promise((resolve) => setTimeout(resolve, recordingWaitMs));
+
   console.log('Retrieving compiled video from browser memory...');
   const base64Data = await page.evaluate(async () => {
     // Poll for the base64 string to be ready
@@ -222,34 +175,34 @@ async function run() {
       if (window.recordedVideoBase64) {
         return window.recordedVideoBase64;
       }
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
     return null;
   });
-  
+
   if (!base64Data) {
     throw new Error('Failed to retrieve compiled video base64 string within timeout.');
   }
-  
+
   console.log('Saving video file...');
   // Strip standard base64 data header e.g. "data:video/webm;base64,"
-  const base64Content = base64Data.replace(/^data:video\/[a-zA-Z0-9]+;base64,/, "");
+  const base64Content = base64Data.replace(/^data:video\/[a-zA-Z0-9]+;base64,/, '');
   const videoBuffer = Buffer.from(base64Content, 'base64');
-  
+
   // Ensure the directory exists
   const dir = path.dirname(outPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  
+
   fs.writeFileSync(outPath, videoBuffer);
   console.log(`\nSuccess! Cinematic walkthrough video recorded and saved to:\n${outPath}\n`);
-  
+
   console.log('Closing browser...');
   await browser.close();
 }
 
-run().catch(err => {
+run().catch((err) => {
   console.error('Error recording cinematic video:', err);
   process.exit(1);
 });

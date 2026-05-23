@@ -1,14 +1,17 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    
+
     <!-- Title & SEO Tags -->
     <title>Hearthside Lounge — explorable 3D pixel-art cozy retreat</title>
-    <meta name="description" content="Explore a warm and cozy, low-poly, pixel-3D mountain lodge and botanist bar with organic procedural audio, ambient candlelights, and fireplace-warmed voxel visitors." />
-    
+    <meta
+      name="description"
+      content="Explore a warm and cozy, low-poly, pixel-3D mountain lodge and botanist bar with organic procedural audio, ambient candlelights, and fireplace-warmed voxel visitors."
+    />
+
     <link rel="stylesheet" href="./src/style.css" />
   </head>
   <body>
@@ -28,9 +31,9 @@
           <h1>HEARTHSIDE</h1>
           <p>BOTANIST BAR & RETREAT</p>
         </div>
-        
+
         <div class="ticket-divider"></div>
-        
+
         <div class="ticket-info">
           <div class="info-box">
             <div class="info-label">Admit</div>
@@ -49,9 +52,9 @@
             <div class="info-val">DOORMAN APPRVD</div>
           </div>
         </div>
-        
+
         <div class="ticket-divider"></div>
-        
+
         <button id="btn-start" class="ticket-btn">ACCEPT INVITATION & ENTER</button>
         <div class="loading-text">INTERACTIVE 3D EXPERIENCE • HEADPHONES RECOMMENDED</div>
       </div>
@@ -66,9 +69,7 @@
       </div>
 
       <!-- Controls Panel (Top Right Exit instruction + Bottom Left controls list) -->
-      <div class="esc-panel">
-        Press <span>ESC</span> to release mouse pointer
-      </div>
+      <div class="esc-panel">Press <span>ESC</span> to release mouse pointer</div>
 
       <div class="hud-controls-panel">
         <h3>NAVIGATION PANEL</h3>
@@ -84,6 +85,10 @@
           <span>Hold to Sprint</span>
         </div>
         <div class="control-row">
+          <span class="key-cap double">SPACE</span>
+          <span>Jump / Vault</span>
+        </div>
+        <div class="control-row">
           <span class="key-cap double">MOUSE</span>
           <span>Look Around (Pointer Locked)</span>
         </div>
@@ -97,7 +102,7 @@
       <div class="hud-footer">
         <!-- Live Audio Equalizer -->
         <div class="equalizer-card">
-          <div class="eq-title">AUDIO FREQ MATRIX</div>
+          <div class="eq-title">ACOUSTIC SPECTRUM</div>
           <div class="eq-bars">
             <!-- 12 Bars for frequency bands -->
             <div class="eq-bar" id="eq-0"></div>
@@ -124,6 +129,29 @@
     </div>
 
     <!-- Application Logic Entrypoint -->
+    <script>
+      (() => {
+        const params = new URLSearchParams(window.location.search);
+        const seed = params.get('visualQaSeed') || params.get('qaSeed');
+        if (!seed) return;
+
+        let hash = 2166136261;
+        for (let i = 0; i < seed.length; i++) {
+          hash ^= seed.charCodeAt(i);
+          hash = Math.imul(hash, 16777619);
+        }
+
+        let state = hash >>> 0 || 0x9e3779b9;
+        window.__VISUAL_QA_SEED = seed;
+        Math.random = () => {
+          state += 0x6d2b79f5;
+          let next = state;
+          next = Math.imul(next ^ (next >>> 15), next | 1);
+          next ^= next + Math.imul(next ^ (next >>> 7), next | 61);
+          return ((next ^ (next >>> 14)) >>> 0) / 4294967296;
+        };
+      })();
+    </script>
     <script type="module" src="./src/main.js"></script>
   </body>
 </html>

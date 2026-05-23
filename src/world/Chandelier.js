@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export class DiscoBall {
+export class Chandelier {
   constructor(scene, audio) {
     this.scene = scene;
     this.audio = audio;
@@ -47,7 +47,7 @@ export class DiscoBall {
     // 6 Radial Spokes and Candles
     const numSpokes = 6;
     const radius = 0.65;
-    
+
     const candleGeo = new THREE.CylinderGeometry(0.04, 0.04, 0.18, 5);
     const candleMat = new THREE.MeshStandardMaterial({ color: 0xfffcf0, roughness: 0.8 }); // Ivory candles
 
@@ -55,7 +55,7 @@ export class DiscoBall {
       color: 0xffaa3a, // Warm candle-orange glow
       transparent: true,
       opacity: 0.95,
-      blending: THREE.AdditiveBlending
+      blending: THREE.AdditiveBlending,
     });
 
     for (let i = 0; i < numSpokes; i++) {
@@ -66,7 +66,7 @@ export class DiscoBall {
       // Spoke metal arm
       const spokeGeo = new THREE.BoxGeometry(radius, 0.02, 0.02);
       const spokeMesh = new THREE.Mesh(spokeGeo, chainMat);
-      
+
       // Pivot and position radial spoke arm
       spokeMesh.position.set(sx / 2, -0.05, sz / 2);
       spokeMesh.rotation.y = -angle;
@@ -74,7 +74,11 @@ export class DiscoBall {
 
       // Small brass drip pan under the candle
       const panGeo = new THREE.CylinderGeometry(0.07, 0.06, 0.02, 6);
-      const panMat = new THREE.MeshStandardMaterial({ color: 0xcda45d, metalness: 0.8, roughness: 0.2 }); // Brass
+      const panMat = new THREE.MeshStandardMaterial({
+        color: 0xcda45d,
+        metalness: 0.8,
+        roughness: 0.2,
+      }); // Brass
       const panMesh = new THREE.Mesh(panGeo, panMat);
       panMesh.position.set(sx, -0.02, sz);
       this.ballMesh.add(panMesh);
@@ -88,7 +92,7 @@ export class DiscoBall {
       // Glowing candle flame voxel
       const flameGeo = new THREE.BoxGeometry(0.03, 0.07, 0.03);
       const flameMesh = new THREE.Mesh(flameGeo, flameMat);
-      flameMesh.position.set(sx, 0.20, sz);
+      flameMesh.position.set(sx, 0.2, sz);
       this.ballMesh.add(flameMesh);
 
       // Track the flame mesh to animate its height/scale on sequencer beats
@@ -121,7 +125,7 @@ export class DiscoBall {
       color: 0xffcc44, // Warm golden spark reflections
       transparent: true,
       opacity: 0.65,
-      blending: THREE.AdditiveBlending
+      blending: THREE.AdditiveBlending,
     });
     this.sparkMaterial = sparkMat;
 
@@ -130,18 +134,14 @@ export class DiscoBall {
 
     for (let i = 0; i < numSparks; i++) {
       const mesh = new THREE.Mesh(sparkGeo, sparkMat);
-      
+
       // Assign randomized orbit metrics
-      const radius = 1.2 + Math.random() * 8.0; // sweep across different distances on dancefloor
+      const radius = 1.2 + Math.random() * 8.0; // sweep across different distances in the hall
       const speed = (0.08 + Math.random() * 0.15) * (Math.random() > 0.5 ? 1 : -1); // much slower, peaceful orbit
       const angle = Math.random() * Math.PI * 2;
       const height = 0.1 + Math.random() * 2.5; // swept heights from floor to walls
 
-      mesh.position.set(
-        10.5 + Math.cos(angle) * radius,
-        height,
-        0 + Math.sin(angle) * radius
-      );
+      mesh.position.set(10.5 + Math.cos(angle) * radius, height, 0 + Math.sin(angle) * radius);
 
       this.scene.add(mesh);
 
@@ -150,7 +150,7 @@ export class DiscoBall {
         radius: radius,
         speed: speed,
         angle: angle,
-        height: height
+        height: height,
       });
     }
   }
@@ -167,7 +167,7 @@ export class DiscoBall {
       // Gentle vertical bobbing sway for realism
       const newY = 3.8 + Math.sin(time * 1.2) * 0.02;
       this.ballMesh.position.y = newY;
-      
+
       // Keep the point lights locked to the bobbing chandelier
       if (this.ballLight) {
         this.ballLight.position.y = newY - 0.1;
@@ -185,9 +185,9 @@ export class DiscoBall {
         // Flare beautifully on sequencer kick stomp beats
         this.ballLight.intensity = 3.8;
         if (this.ceilingFillLight) this.ceilingFillLight.intensity = 4.8;
-        
+
         // Scale the flame shapes up during beat spikes
-        this.flames.forEach(flame => {
+        this.flames.forEach((flame) => {
           flame.scale.set(1.4, 1.7, 1.4);
         });
       } else {
@@ -199,7 +199,8 @@ export class DiscoBall {
         }
 
         // Apply a subtle, organic candlelight flickering noise
-        const flicker = Math.sin(time * 18.0) * 0.08 + (Math.random() > 0.9 ? (Math.random() - 0.5) * 0.25 : 0);
+        const flicker =
+          Math.sin(time * 18.0) * 0.08 + (Math.random() > 0.9 ? (Math.random() - 0.5) * 0.25 : 0);
         this.ballLight.intensity += flicker;
         if (this.ceilingFillLight) {
           this.ceilingFillLight.intensity += flicker;
@@ -209,7 +210,8 @@ export class DiscoBall {
         this.flames.forEach((flame, index) => {
           const flameDecay = 1 - Math.exp(-8.0 * dt);
           flame.scale.x += (1.0 - flame.scale.x) * flameDecay;
-          flame.scale.y += ((1.0 + Math.sin(time * 25.0 + index) * 0.08) - flame.scale.y) * flameDecay;
+          flame.scale.y +=
+            (1.0 + Math.sin(time * 25.0 + index) * 0.08 - flame.scale.y) * flameDecay;
           flame.scale.z += (1.0 - flame.scale.z) * flameDecay;
         });
       }
@@ -227,10 +229,10 @@ export class DiscoBall {
 
     // 4. Animate reflecting sparks
     const scaleDecay = 1 - Math.exp(-5.0 * dt);
-    this.sparks.forEach(spark => {
+    this.sparks.forEach((spark) => {
       // Advance orbit angle slowly
       spark.angle += spark.speed * dt;
-      
+
       const targetX = 10.5 + Math.cos(spark.angle) * spark.radius;
       const targetZ = 0 + Math.sin(spark.angle) * spark.radius;
 

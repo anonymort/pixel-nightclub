@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import { ROOMS, getRoomForPosition } from '../config/experience.js';
 
 export class AudioManager {
   constructor() {
@@ -6,7 +6,7 @@ export class AudioManager {
     this.masterGain = null;
     this.filterNode = null;
     this.analyser = null;
-    
+
     // Sequencer States
     this.isPlaying = false;
     this.bpm = 80; // Slowed down from 120 to 80 BPM (cozy acoustic chill)
@@ -17,52 +17,16 @@ export class AudioManager {
     this.timerId = null;
 
     // Acoustic Lerping variables
-    this.targetCutoff = 300;     // Hz
+    this.targetCutoff = 300; // Hz
     this.currentCutoff = 300;
-    this.targetVolume = 0.25;    // gain
+    this.targetVolume = 0.25; // gain
     this.currentVolume = 0.25;
-    
+
     // Beat Sync Flag (set to true on kick drum triggers)
     this.isBeatHit = false;
 
-    // Room boundaries & HUD definitions (Cozy woodland themes replacing cyber)
-    this.rooms = [
-      {
-        name: 'COBBLESTONE STREET',
-        desc: 'Walking along the sidewalk. Distant fireplace crackles and soft jazz through the door.',
-        cutoff: 280,
-        volume: 0.28,
-        bounds: { xMin: -50, xMax: -4.8, zMin: -50, zMax: 50 }
-      },
-      {
-        name: 'RECEPTION & COATROOM',
-        desc: 'Muffled chatter. Inside the wood-paneled lobby cloakroom.',
-        cutoff: 750,
-        volume: 0.55,
-        bounds: { xMin: -4.8, xMax: 1.0, zMin: -50, zMax: 50 }
-      },
-      {
-        name: 'BOTANIST BAR',
-        desc: 'Sitting by the polished mahogany bar. Warm acoustic guitar and Rhodes electric piano.',
-        cutoff: 1800,
-        volume: 0.8,
-        bounds: { xMin: 1.0, xMax: 13.0, zMin: 5.5, zMax: 11.0 }
-      },
-      {
-        name: 'HEARTHSIDE LOUNGE',
-        desc: 'Relaxing on the cognac sofas by the brick fireplace. Comfortable, soothing warmth.',
-        cutoff: 1200,
-        volume: 0.7,
-        bounds: { xMin: 6.0, xMax: 19.0, zMin: -21.0, zMax: -10.5 }
-      },
-      {
-        name: 'ACOUSTIC HALL',
-        desc: 'Swaying under the grand candle chandelier. Warm, crisp acoustic reverberation.',
-        cutoff: 20000, // bypass filter practically
-        volume: 1.0,
-        bounds: { xMin: 1.0, xMax: 20.0, zMin: -10.5, zMax: 5.5 }
-      }
-    ];
+    // Room boundaries and HUD definitions for acoustic occlusion.
+    this.rooms = ROOMS;
 
     this.currentRoom = this.rooms[0]; // Default start room: exterior
 
@@ -84,7 +48,7 @@ export class AudioManager {
     // 1. Create AudioContext
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     this.audioContext = new AudioContextClass();
-    
+
     // 2. Set up Nodes
     this.masterGain = this.audioContext.createGain();
     this.masterGain.gain.setValueAtTime(this.currentVolume, this.audioContext.currentTime);
@@ -160,10 +124,10 @@ export class AudioManager {
     // 1. Cozy Kick Drum (Wooden stomp heartbeat kick on steps 0, 4, 8, 12)
     if (step % 4 === 0) {
       this._synthesizeKick(time);
-      
+
       // Calculate delay in milliseconds until the sound actually plays
       const delayMs = Math.max(0, (time - this.audioContext.currentTime) * 1000);
-      
+
       const tId = setTimeout(() => {
         this.isBeatHit = true;
         const tId2 = setTimeout(() => {
@@ -172,7 +136,7 @@ export class AudioManager {
           if (idx2 > -1) this.activeTimeouts.splice(idx2, 1);
         }, 80);
         this.activeTimeouts.push(tId2);
-        
+
         const idx = this.activeTimeouts.indexOf(tId);
         if (idx > -1) this.activeTimeouts.splice(idx, 1);
       }, delayMs);
@@ -192,19 +156,19 @@ export class AudioManager {
       130.81 / 4, // C1 (step 0)
       0,
       130.81 / 4, // C1 (step 2)
-      196.00 / 4, // G1 (step 3)
+      196.0 / 4, // G1 (step 3)
       155.56 / 4, // Eb1 (step 4)
       0,
       155.56 / 4, // Eb1 (step 6)
       233.08 / 4, // Bb1 (step 7)
-      196.00 / 4, // G1 (step 8)
+      196.0 / 4, // G1 (step 8)
       0,
-      196.00 / 4, // G1 (step 10)
+      196.0 / 4, // G1 (step 10)
       293.66 / 4, // D2 (step 11)
       174.61 / 4, // F1 (step 12)
       0,
       174.61 / 4, // F1 (step 14)
-      220.00 / 4  // A1 (step 15)
+      220.0 / 4, // A1 (step 15)
     ];
     const bassFreq = bassPattern[step];
     if (bassFreq > 0) {
@@ -216,23 +180,23 @@ export class AudioManager {
       // Play C Minor 7 chord (warm and lush)
       this._synthesizeLead(time, 130.81, 0.15); // C3
       this._synthesizeLead(time, 155.56, 0.13); // Eb3
-      this._synthesizeLead(time, 196.00, 0.13); // G3
+      this._synthesizeLead(time, 196.0, 0.13); // G3
       this._synthesizeLead(time, 233.08, 0.11); // Bb3
     } else if (step === 4) {
       // Soft melodic top note
       this._synthesizeLead(time, 293.66, 0.12); // D4
     } else if (step === 8) {
       // Play G Minor 7 chord
-      this._synthesizeLead(time, 196.00, 0.15); // G3
+      this._synthesizeLead(time, 196.0, 0.15); // G3
       this._synthesizeLead(time, 233.08, 0.13); // Bb3
       this._synthesizeLead(time, 293.66, 0.13); // D4
       this._synthesizeLead(time, 349.23, 0.11); // F4
     } else if (step === 12) {
       // High bell transition note
-      this._synthesizeLead(time, 392.00, 0.12); // G4
+      this._synthesizeLead(time, 392.0, 0.12); // G4
     } else if (step === 2 || step === 6 || step === 10 || step === 14) {
       // Gentle acoustic filler notes
-      const fillers = [155.56, 196.00, 233.08, 293.66];
+      const fillers = [155.56, 196.0, 233.08, 293.66];
       const freq = fillers[(step / 2) % fillers.length];
       this._synthesizeLead(time, freq, 0.07);
     }
@@ -246,7 +210,7 @@ export class AudioManager {
   _synthesizeKick(time) {
     const osc = this.audioContext.createOscillator();
     const gain = this.audioContext.createGain();
-    
+
     osc.connect(gain);
     gain.connect(this.filterNode);
 
@@ -273,7 +237,7 @@ export class AudioManager {
 
     const randomOffset = Math.random() * 0.95;
     const gain = this.audioContext.createGain();
-    
+
     noiseNode.connect(gain);
     gain.connect(this.hiHatFilter);
 
@@ -293,8 +257,8 @@ export class AudioManager {
 
     const osc = this.audioContext.createOscillator();
     const gain = this.audioContext.createGain();
-    
-    // Triangle wave gives a beautiful, warm, woody resonance (replaces cyberpunk sawtooth)
+
+    // Triangle wave gives a warm, woody resonance.
     osc.type = 'triangle';
     osc.frequency.setValueAtTime(frequency, time);
 
@@ -378,28 +342,19 @@ export class AudioManager {
    * @param {number} z - Player Z coordinate
    */
   setPlayerPosition(x, z) {
-    // Search room boundaries list
-    let detectedRoom = this.rooms[this.rooms.length - 1]; // default main dancefloor
-    
-    for (let i = 0; i < this.rooms.length; i++) {
-      const b = this.rooms[i].bounds;
-      if (x >= b.xMin && x <= b.xMax && z >= b.zMin && z <= b.zMax) {
-        detectedRoom = this.rooms[i];
-        break;
-      }
-    }
+    const detectedRoom = getRoomForPosition(x, z);
 
     this.currentRoom = detectedRoom;
     this.targetCutoff = detectedRoom.cutoff;
-    
+
     // Apply distance attenuation based on Chandelier proximity (located around x = 10.5, z = 0)
     if (detectedRoom.name === 'ACOUSTIC HALL') {
       const dx = 10.5 - x;
       const dz = 0 - z;
       const dist = Math.sqrt(dx * dx + dz * dz);
-      
+
       // Volume scales from 1.0 (at center) to 0.72 (at edge)
-      const distanceAttenuation = Math.max(0.68, 1.1 - (dist * 0.022));
+      const distanceAttenuation = Math.max(0.68, 1.1 - dist * 0.022);
       this.targetVolume = detectedRoom.volume * distanceAttenuation;
     } else {
       this.targetVolume = detectedRoom.volume;
@@ -414,7 +369,7 @@ export class AudioManager {
 
     // Linear interpolation: 7% shift per frame makes room acoustic changes extremely smooth
     const lerpFactor = 0.07;
-    
+
     this.currentCutoff += (this.targetCutoff - this.currentCutoff) * lerpFactor;
     this.currentVolume += (this.targetVolume - this.currentVolume) * lerpFactor;
 
@@ -437,7 +392,7 @@ export class AudioManager {
     if (!this.analyser) return new Uint8Array(12).fill(0);
     const array = new Uint8Array(this.analyser.frequencyBinCount);
     this.analyser.getByteFrequencyData(array);
-    
+
     // Map full FFT bins down to our 12 neat UI bands
     const eqBands = new Uint8Array(12);
     const step = Math.floor(array.length / 12);
@@ -454,7 +409,7 @@ export class AudioManager {
     this.isPlaying = false;
     clearTimeout(this.timerId);
     if (this.activeTimeouts) {
-      this.activeTimeouts.forEach(id => clearTimeout(id));
+      this.activeTimeouts.forEach((id) => clearTimeout(id));
       this.activeTimeouts = [];
     }
     if (this.audioContext) {

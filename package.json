@@ -1,16 +1,27 @@
 {
-  "name": "pixel-hospital",
+  "name": "hearthside-lounge",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "qa:screenshots": "node take_screenshots.js",
+    "qa:tour": "node record_tour.js",
+    "qa:video": "node record_video.js"
   },
   "devDependencies": {
+    "eslint": "^10.4.0",
+    "globals": "^17.6.0",
+    "prettier": "^3.8.3",
     "puppeteer": "^25.0.4",
-    "vite": "^8.0.12"
+    "vite": "^8.0.12",
+    "vitest": "^4.1.7"
   },
   "dependencies": {
     "three": "^0.184.0"

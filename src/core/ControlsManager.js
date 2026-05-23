@@ -1,4 +1,18 @@
 import * as THREE from 'three';
+import { ContactLayer } from '../utils/ContactLayer.js';
+
+export async function requestPointerLockSafely(domElement) {
+  if (!domElement || typeof domElement.requestPointerLock !== 'function') {
+    return false;
+  }
+
+  try {
+    await domElement.requestPointerLock();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export class ControlsManager {
   /**
@@ -8,14 +22,26 @@ export class ControlsManager {
   constructor(camera, domElement) {
     this.camera = camera;
     this.domElement = domElement;
-    
+
     // Ensure camera rotation order is YXZ to avoid gimbal lock during FPS look
     this.camera.rotation.order = 'YXZ';
 
     this.isLocked = false;
     this.mouseSensitivity = 0.0022;
-    this.moveSpeed = 20.0;      // m/s^2 acceleration (increased by 25%)
-    this.friction = 10.0;       // friction damping coefficient
+    this.walkMaxSpeed = 2.35;
+    this.runMaxSpeed = this.walkMaxSpeed * 1.25;
+    this.acceleration = 18.0;
+    this.deceleration = 8.5;
+    this.friction = 10.0;
+    this.moveSpeed = this.acceleration;
+    this.eyeHeight = 1.7;
+    this.gravity = 9.8;
+    this.jumpVelocity = 5.4;
+    this.verticalVelocity = 0;
+    this.isGrounded = true;
+    this.currentGroundY = 0;
+    this.jumpQueued = false;
+    this.climbableSurfaces = [];
 
     // Player Physics States
     this.velocity = new THREE.Vector3();
@@ -24,14 +50,17 @@ export class ControlsManager {
       backward: false,
       left: false,
       right: false,
-      run: false
+      run: false,
+      jump: false,
     };
 
     // Collision Boxes array (list of THREE.Box3 objects representing walls/furniture)
     this.collisionBoxes = [];
+    this.contactLayer = new ContactLayer();
 
     // Player half-width for bounding box collision checks
     this.playerRadius = 0.45; // meters
+    this.playerCollisionHeight = 3.0;
 
     this._initListeners();
   }
@@ -43,12 +72,15 @@ export class ControlsManager {
     // 1. Define bound handler functions
     this._onClick = () => {
       if (!this.isLocked) {
-        this.domElement.requestPointerLock();
+        requestPointerLockSafely(this.domElement);
       }
     };
 
     this._onPointerLockChange = () => {
-      this.isLocked = (document.pointerLockElement === this.domElement);
+      this.isLocked = document.pointerLockElement === this.domElement;
+      if (!this.isLocked) {
+        this.velocity.set(0, 0, 0);
+      }
     };
 
     this._onMouseMove = (e) => {
@@ -59,10 +91,10 @@ export class ControlsManager {
 
       // Yaw (horizontal left/right)
       this.camera.rotation.y -= movementX * this.mouseSensitivity;
-      
+
       // Pitch (vertical up/down)
       this.camera.rotation.x -= movementY * this.mouseSensitivity;
-      
+
       // Clamp pitch to avoid turning upside down (85 degrees max)
       const maxPitch = 1.48;
       this.camera.rotation.x = Math.max(-maxPitch, Math.min(maxPitch, this.camera.rotation.x));
@@ -78,6 +110,8 @@ export class ControlsManager {
       this.keys.left = false;
       this.keys.right = false;
       this.keys.run = false;
+      this.keys.jump = false;
+      this.jumpQueued = false;
       this.velocity.set(0, 0, 0);
     };
 
@@ -128,7 +162,45 @@ export class ControlsManager {
       case 'ShiftRight':
         this.keys.run = isDown;
         break;
+      case 'Space':
+        this.keys.jump = isDown;
+        if (isDown) this.jumpQueued = true;
+        break;
     }
+  }
+
+  registerCollider(collider) {
+    return this.contactLayer.addCollider(collider);
+  }
+
+  registerClimbableBox(box3) {
+    if (!(box3 instanceof THREE.Box3)) return null;
+    const size = new THREE.Vector3();
+    const center = new THREE.Vector3();
+    box3.getSize(size);
+    box3.getCenter(center);
+    const surface = {
+      minX: box3.min.x,
+      maxX: box3.max.x,
+      minZ: box3.min.z,
+      maxZ: box3.max.z,
+      topY: box3.max.y,
+    };
+    this.climbableSurfaces.push(surface);
+    this.contactLayer.addCollider({
+      id: `climbable-${this.climbableSurfaces.length}`,
+      type: 'furniture',
+      category: 'furniture',
+      solid: true,
+      shape: 'aabb',
+      position: { x: center.x, z: center.z },
+      halfExtents: { x: size.x / 2, z: size.z / 2 },
+      minY: box3.min.y,
+      maxY: box3.max.y,
+      climbable: true,
+      contactWeight: Infinity,
+    });
+    return surface;
   }
 
   /**
@@ -137,6 +209,25 @@ export class ControlsManager {
   registerCollisionBox(box3) {
     if (box3 instanceof THREE.Box3) {
       this.collisionBoxes.push(box3);
+      if (box3.min.y >= this.playerCollisionHeight || box3.max.y <= 0) {
+        return;
+      }
+      const size = new THREE.Vector3();
+      const center = new THREE.Vector3();
+      box3.getSize(size);
+      box3.getCenter(center);
+      this.contactLayer.addCollider({
+        id: `static-${this.collisionBoxes.length}`,
+        type: 'furniture',
+        category: 'furniture',
+        solid: true,
+        shape: 'aabb',
+        position: { x: center.x, z: center.z },
+        halfExtents: { x: size.x / 2, z: size.z / 2 },
+        minY: box3.min.y,
+        maxY: box3.max.y,
+        contactWeight: Infinity,
+      });
     }
   }
 
@@ -194,53 +285,126 @@ export class ControlsManager {
     if (this.keys.backward) direction.sub(front);
     if (this.keys.left) direction.sub(side);
     if (this.keys.right) direction.add(side);
-    
+
     direction.normalize();
 
-    // 2. Apply Acceleration and Friction damping
-    // Acceleration: dv/dt = a - friction * v
-    const currentSpeed = this.keys.run ? this.moveSpeed * 2.0 : this.moveSpeed;
-    const accel = direction.multiplyScalar(currentSpeed);
-    
-    this.velocity.x += (accel.x - this.friction * this.velocity.x) * dt;
-    this.velocity.z += (accel.z - this.friction * this.velocity.z) * dt;
-
-    // 3. Independent Axis Movement & Collision Resolution (Sliding Physics)
-    const currentPos = this.camera.position.clone();
-
-    // --- Resolve X Axis ---
-    const stepX = this.velocity.x * dt;
-    if (Math.abs(stepX) > 0.0001) {
-      const targetX = currentPos.x + stepX;
-      const testBoxX = this._getPlayerBox(targetX, currentPos.z);
-      
-      if (!this._checkCollision(testBoxX)) {
-        this.camera.position.x = targetX;
-      } else {
-        // Hit a wall on X: stop X velocity, but allow Z movement sliding!
+    // 2. Apply explicit acceleration and frame-rate-stable exponential slowdown.
+    const hasInput = direction.lengthSq() > 0;
+    const maxSpeed = this.keys.run ? this.runMaxSpeed : this.walkMaxSpeed;
+    if (hasInput) {
+      this.velocity.x += direction.x * this.acceleration * dt;
+      this.velocity.z += direction.z * this.acceleration * dt;
+      this._clampHorizontalVelocity(maxSpeed);
+    } else {
+      const damping = Math.exp(-this.deceleration * dt);
+      this.velocity.x *= damping;
+      this.velocity.z *= damping;
+      if (Math.hypot(this.velocity.x, this.velocity.z) < 0.001) {
         this.velocity.x = 0;
-      }
-    }
-
-    // --- Resolve Z Axis ---
-    const stepZ = this.velocity.z * dt;
-    if (Math.abs(stepZ) > 0.0001) {
-      const targetZ = currentPos.z + stepZ;
-      const testBoxZ = this._getPlayerBox(this.camera.position.x, targetZ);
-      
-      if (!this._checkCollision(testBoxZ)) {
-        this.camera.position.z = targetZ;
-      } else {
-        // Hit a wall on Z: stop Z velocity, but allow X movement sliding!
         this.velocity.z = 0;
       }
     }
 
-    // 4. Double-check world absolute boundaries (clamping player to within club parameters)
+    this._updateVerticalMotion(dt);
+
+    // 3. Shared 2D contact layer movement with contact-normal projection.
+    const start = { x: this.camera.position.x, z: this.camera.position.z };
+    const move = { x: this.velocity.x * dt, z: this.velocity.z * dt };
+    const result = this.contactLayer.moveCircle(start, move, {
+      radius: this.playerRadius,
+      category: 'player',
+      footY: this.camera.position.y - this.eyeHeight,
+      climbClearance: 0.05,
+      isAirborne: !this.isGrounded,
+    });
+    this.camera.position.x = result.position.x;
+    this.camera.position.z = result.position.z;
+    if (dt > 0) {
+      this.velocity.x = result.delta.x / dt;
+      this.velocity.z = result.delta.z / dt;
+    }
+
+    // 4. Double-check world absolute boundaries (clamping player to within lounge parameters)
     this.camera.position.x = Math.max(-25.0, Math.min(25.0, this.camera.position.x));
     this.camera.position.z = Math.max(-25.0, Math.min(25.0, this.camera.position.z));
-    
-    // Ensure eye height is perfectly flat on the nightclub floor
-    this.camera.position.y = 1.7; 
+
+    this._updateGroundSupport();
+  }
+
+  _clampHorizontalVelocity(maxSpeed) {
+    const speed = Math.hypot(this.velocity.x, this.velocity.z);
+    if (speed > maxSpeed) {
+      const scale = maxSpeed / speed;
+      this.velocity.x *= scale;
+      this.velocity.z *= scale;
+    }
+  }
+
+  _updateVerticalMotion(dt) {
+    if (this.jumpQueued && this.isGrounded) {
+      this.verticalVelocity = this.jumpVelocity;
+      this.isGrounded = false;
+    }
+    this.jumpQueued = false;
+
+    if (this.isGrounded) {
+      this.camera.position.y = this.eyeHeight + this.currentGroundY;
+      return;
+    }
+
+    const previousFootY = this.camera.position.y - this.eyeHeight;
+    this.verticalVelocity -= this.gravity * dt;
+    let nextFootY = previousFootY + this.verticalVelocity * dt;
+
+    const landingY = this._findLandingSurface(previousFootY, nextFootY);
+    if (landingY !== null) {
+      this.currentGroundY = landingY;
+      this.verticalVelocity = 0;
+      this.isGrounded = true;
+      this.camera.position.y = this.eyeHeight + landingY;
+      return;
+    }
+
+    if (nextFootY <= 0) {
+      nextFootY = 0;
+      this.currentGroundY = 0;
+      this.verticalVelocity = 0;
+      this.isGrounded = true;
+    }
+
+    this.camera.position.y = this.eyeHeight + nextFootY;
+  }
+
+  _findLandingSurface(previousFootY, nextFootY) {
+    if (this.verticalVelocity > 0) return null;
+    let bestY = null;
+    for (const surface of this.climbableSurfaces) {
+      if (previousFootY < surface.topY || nextFootY > surface.topY) continue;
+      if (!this._isOverSurface(surface)) continue;
+      if (bestY === null || surface.topY > bestY) bestY = surface.topY;
+    }
+    return bestY;
+  }
+
+  _isOverSurface(surface) {
+    const x = this.camera.position.x;
+    const z = this.camera.position.z;
+    return (
+      x + this.playerRadius > surface.minX &&
+      x - this.playerRadius < surface.maxX &&
+      z + this.playerRadius > surface.minZ &&
+      z - this.playerRadius < surface.maxZ
+    );
+  }
+
+  _updateGroundSupport() {
+    if (!this.isGrounded || this.currentGroundY <= 0) return;
+    const supported = this.climbableSurfaces.some(
+      (surface) => Math.abs(surface.topY - this.currentGroundY) < 0.001 && this._isOverSurface(surface)
+    );
+    if (!supported) {
+      this.isGrounded = false;
+      this.verticalVelocity = 0;
+    }
   }
 }
