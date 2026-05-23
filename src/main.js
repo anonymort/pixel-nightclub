@@ -7,6 +7,7 @@ import { LightingManager } from './world/LightingManager.js';
 import { Chandelier } from './world/Chandelier.js';
 import { NPCManager } from './entities/NPCManager.js';
 import { UIManager } from './ui/UIManager.js';
+import { InteractionManager } from './interaction/InteractionManager.js';
 
 const app = createAppController({
   exposeDebugGlobals: true,
@@ -22,7 +23,10 @@ const app = createAppController({
     new LightingManager(scene, audio, tileMaterials),
   createChandelier: (scene, audio) => new Chandelier(scene, audio),
   createNPCManager: (scene, audio, contactLayer) => new NPCManager(scene, audio, contactLayer),
-  createUIManager: (audio, controls) => new UIManager(audio, controls),
+  createUIManager: (audio, controls, interactionManager) =>
+    new UIManager(audio, controls, interactionManager),
+  createInteractionManager: (controls, audio, npcManager) =>
+    new InteractionManager(controls, audio, npcManager, null),
 });
 
 window.hearthsideApp = app;

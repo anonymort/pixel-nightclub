@@ -4,14 +4,17 @@ export class UIManager {
   /**
    * @param {AudioManager} audio - Reference to active audio manager
    * @param {ControlsManager} controls - Reference to player controls
+   * @param {InteractionManager} [interactionManager] - Optional interaction manager
    */
-  constructor(audio, controls) {
+  constructor(audio, controls, interactionManager = null) {
     this.audio = audio;
     this.controls = controls;
+    this.interactionManager = interactionManager;
 
     this.lastRoomName = '';
     this.promptTimeoutId = null;
     this.pointerLockTimeoutId = null;
+    this.lastInteractText = '';
 
     this._bindElements();
     this._installEventHandlers();
@@ -26,6 +29,7 @@ export class UIManager {
     this.roomTag = document.getElementById('active-room-tag');
     this.roomDesc = document.getElementById('active-room-desc');
     this.prompt = document.getElementById('floating-prompt');
+    this.interactPrompt = document.getElementById('interact-prompt');
     this.beatPulse = document.getElementById('beat-pulse');
 
     // Store references to the 12 EQ bars
@@ -66,9 +70,10 @@ export class UIManager {
   }
 
   /**
-   * Shows a warm banner in the middle of the screen for room alerts.
+   * Shows a warm banner in the middle of the screen for room alerts. Public
+   * so InteractionManager and other systems can flash transient messages.
    */
-  _showFloatingPrompt(text, duration = 2000) {
+  showFloatingPrompt(text, duration = 2000) {
     if (!this.prompt) return;
 
     // Reset previous timeouts to avoid overlapping transitions
@@ -80,6 +85,10 @@ export class UIManager {
     this.promptTimeoutId = setTimeout(() => {
       this.prompt.classList.remove('show');
     }, duration);
+  }
+
+  _showFloatingPrompt(text, duration) {
+    this.showFloatingPrompt(text, duration);
   }
 
   /**
@@ -121,6 +130,17 @@ export class UIManager {
         this.beatPulse.style.transform = 'scale(1.0)';
         this.beatPulse.style.backgroundColor = '#9e0030'; // Dark red rest
       }
+    }
+
+    // 4. Contextual interact prompt (sit / order / stand)
+    if (this.interactPrompt) {
+      const prompt = this.interactionManager?.getActivePrompt?.();
+      const text = prompt ? `${prompt.label}  [${prompt.key}]` : '';
+      if (text !== this.lastInteractText) {
+        this.interactPrompt.textContent = text;
+        this.lastInteractText = text;
+      }
+      this.interactPrompt.classList.toggle('show', Boolean(prompt));
     }
   }
 

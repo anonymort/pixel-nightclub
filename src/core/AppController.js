@@ -1,4 +1,5 @@
 import { APP_BRAND } from '../config/experience.js';
+import { wireInteractables } from '../interaction/wireInteractables.js';
 
 export function createAppController(options) {
   const {
@@ -10,6 +11,7 @@ export function createAppController(options) {
     createChandelier,
     createNPCManager,
     createUIManager,
+    createInteractionManager,
     requestAnimationFrame,
     cancelAnimationFrame,
     now,
@@ -38,16 +40,25 @@ export function createAppController(options) {
     audioManager,
     controlsManager.contactLayer
   );
-  const uiManager = createUIManager(audioManager, controlsManager);
+  const interactionManager = createInteractionManager
+    ? createInteractionManager(controlsManager, audioManager, npcManager)
+    : null;
+  const uiManager = createUIManager(audioManager, controlsManager, interactionManager);
+  if (interactionManager) {
+    interactionManager.uiManager = uiManager;
+    wireInteractables(interactionManager);
+  }
 
   if (exposeDebugGlobals && globalTarget) {
     globalTarget.sceneManager = sceneManager;
     globalTarget.audioManager = audioManager;
     globalTarget.controlsManager = controlsManager;
     globalTarget.performanceManager = sceneManager.performanceManager;
+    if (interactionManager) globalTarget.interactionManager = interactionManager;
   }
 
   sceneManager.addUpdatable(controlsManager);
+  if (interactionManager) sceneManager.addUpdatable(interactionManager);
   sceneManager.addUpdatable(lightingManager);
   sceneManager.addUpdatable(chandelier);
   sceneManager.addUpdatable(npcManager);
@@ -94,6 +105,7 @@ export function createAppController(options) {
     chandelier,
     npcManager,
     uiManager,
+    interactionManager,
     get cancelAnimationFrame() {
       return cancelAnimationFrame;
     },
@@ -113,6 +125,7 @@ export function createAppController(options) {
         frameId = null;
       }
       disposeObject(uiManager);
+      disposeObject(interactionManager);
       disposeObject(npcManager);
       disposeObject(chandelier);
       disposeObject(lightingManager);

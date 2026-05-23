@@ -176,4 +176,41 @@ describe('ControlsManager movement tuning', () => {
     expect(controls.currentGroundY).toBe(0);
     expect(controls.camera.position.y).toBeCloseTo(controls.eyeHeight);
   });
+
+  it('seats the player at the anchor and suppresses movement while seated', () => {
+    const controls = createControls();
+    controls.setSeated({ anchorX: 7.2, anchorZ: 5.6, eyeHeight: 1.0 });
+
+    expect(controls.isSeated).toBe(true);
+    expect(controls.eyeHeight).toBe(1.0);
+    expect(controls.camera.position.x).toBeCloseTo(7.2);
+    expect(controls.camera.position.z).toBeCloseTo(5.6);
+    expect(controls.camera.position.y).toBeCloseTo(1.0);
+
+    controls.keys.forward = true;
+    controls.keys.right = true;
+    for (let i = 0; i < 30; i++) controls.update(1 / 60);
+
+    expect(controls.camera.position.x).toBeCloseTo(7.2);
+    expect(controls.camera.position.z).toBeCloseTo(5.6);
+    expect(controls.velocity.lengthSq()).toBeCloseTo(0);
+  });
+
+  it('stands the player back up at the standing eye height', () => {
+    const controls = createControls();
+    controls.setSeated({ anchorX: 10.5, anchorZ: -17.0, eyeHeight: 0.85 });
+    controls.standUp();
+
+    expect(controls.isSeated).toBe(false);
+    expect(controls.seatedAnchor).toBeNull();
+    expect(controls.eyeHeight).toBe(controls.standingEyeHeight);
+    expect(controls.camera.position.y).toBeCloseTo(controls.standingEyeHeight);
+  });
+
+  it('queues an interact request on E keydown', () => {
+    const controls = createControls();
+    expect(controls.interactQueued).toBe(false);
+    controls._onKeyStateChange({ code: 'KeyE' }, true);
+    expect(controls.interactQueued).toBe(true);
+  });
 });

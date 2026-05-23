@@ -798,6 +798,16 @@ export class NPCManager {
 
     this.scene.add(bartender.group);
     this.npcs.push(bartender);
+    this.bartender = bartender;
+  }
+
+  /**
+   * Briefly amplifies the bartender's polishing flourish (~1.2s) — used as
+   * visual feedback when the player orders a drink.
+   */
+  triggerBartenderFlourish() {
+    if (!this.bartender) return;
+    this.bartender.flourishUntil = performance.now() * 0.001 + 1.2;
   }
 
   /**
@@ -1062,6 +1072,11 @@ export class NPCManager {
 
       // 2. BARTENDER (case 50)
       if (npc.danceType === 50) {
+        // Brief flourish window after the player orders a drink — amplifies the
+        // polishing motion and lifts the head for a "coming right up" beat.
+        const flourish = Math.max(0, (npc.flourishUntil ?? 0) - time);
+        const amp = 1 + flourish * 1.5;
+
         // Slow breathing bob and subtle hip sway
         npc.group.position.y = Math.sin(time * 1.5) * 0.01;
         npc.group.rotation.y = npc.baseRotationY + Math.sin(time * 0.5) * 0.05;
@@ -1071,11 +1086,11 @@ export class NPCManager {
         npc.joints.leftArm.rotation.y = 0.3;
         npc.joints.leftArm.rotation.z = -0.2;
 
-        npc.joints.rightArm.rotation.x = -1.0 + Math.sin(time * 10.0) * 0.15;
+        npc.joints.rightArm.rotation.x = -1.0 + Math.sin(time * 10.0) * 0.15 * amp;
         npc.joints.rightArm.rotation.y = -0.4;
         npc.joints.rightArm.rotation.z = 0.1;
 
-        npc.joints.head.rotation.x = 0.25 + Math.sin(time * 1.5) * 0.05;
+        npc.joints.head.rotation.x = 0.25 - flourish * 0.15 + Math.sin(time * 1.5) * 0.05;
         npc.joints.head.rotation.y = Math.sin(time * 0.5) * 0.08;
         return;
       }

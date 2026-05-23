@@ -34,7 +34,8 @@ export class ControlsManager {
     this.deceleration = 8.5;
     this.friction = 10.0;
     this.moveSpeed = this.acceleration;
-    this.eyeHeight = 1.7;
+    this.standingEyeHeight = 1.7;
+    this.eyeHeight = this.standingEyeHeight;
     this.gravity = 9.8;
     this.jumpVelocity = 5.4;
     this.verticalVelocity = 0;
@@ -42,6 +43,13 @@ export class ControlsManager {
     this.currentGroundY = 0;
     this.jumpQueued = false;
     this.climbableSurfaces = [];
+
+    // Seated interaction state — when true the update loop locks the camera
+    // to seatedAnchor (xz) and seatedAnchor.eyeHeight, but mouse-look still works.
+    this.isSeated = false;
+    this.seatedAnchor = null;
+    // One-shot flag consumed by InteractionManager when E is pressed.
+    this.interactQueued = false;
 
     // Player Physics States
     this.velocity = new THREE.Vector3();
@@ -112,6 +120,7 @@ export class ControlsManager {
       this.keys.run = false;
       this.keys.jump = false;
       this.jumpQueued = false;
+      this.interactQueued = false;
       this.velocity.set(0, 0, 0);
     };
 
@@ -166,7 +175,34 @@ export class ControlsManager {
         this.keys.jump = isDown;
         if (isDown) this.jumpQueued = true;
         break;
+      case 'KeyE':
+        if (isDown) this.interactQueued = true;
+        break;
     }
+  }
+
+  /**
+   * Places the player on a seat (called by InteractionManager). Mouse-look stays on,
+   * but movement input is suppressed and the camera is pinned to the anchor.
+   */
+  setSeated({ anchorX, anchorZ, eyeHeight }) {
+    this.isSeated = true;
+    this.seatedAnchor = { x: anchorX, z: anchorZ, eyeHeight };
+    this.eyeHeight = eyeHeight;
+    this.velocity.set(0, 0, 0);
+    this.verticalVelocity = 0;
+    this.isGrounded = true;
+    this.currentGroundY = 0;
+    this.camera.position.x = anchorX;
+    this.camera.position.z = anchorZ;
+    this.camera.position.y = eyeHeight;
+  }
+
+  standUp() {
+    this.isSeated = false;
+    this.seatedAnchor = null;
+    this.eyeHeight = this.standingEyeHeight;
+    this.camera.position.y = this.standingEyeHeight + this.currentGroundY;
   }
 
   registerCollider(collider) {
@@ -264,6 +300,14 @@ export class ControlsManager {
     if (!this.isLocked) {
       // If pointer lock is released, slow player down quickly and return
       this.velocity.set(0, 0, 0);
+      return;
+    }
+
+    if (this.isSeated && this.seatedAnchor) {
+      this.velocity.set(0, 0, 0);
+      this.camera.position.x = this.seatedAnchor.x;
+      this.camera.position.z = this.seatedAnchor.z;
+      this.camera.position.y = this.seatedAnchor.eyeHeight;
       return;
     }
 
@@ -400,7 +444,8 @@ export class ControlsManager {
   _updateGroundSupport() {
     if (!this.isGrounded || this.currentGroundY <= 0) return;
     const supported = this.climbableSurfaces.some(
-      (surface) => Math.abs(surface.topY - this.currentGroundY) < 0.001 && this._isOverSurface(surface)
+      (surface) =>
+        Math.abs(surface.topY - this.currentGroundY) < 0.001 && this._isOverSurface(surface)
     );
     if (!supported) {
       this.isGrounded = false;

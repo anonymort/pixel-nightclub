@@ -25,6 +25,10 @@ export class AudioManager {
     // Beat Sync Flag (set to true on kick drum triggers)
     this.isBeatHit = false;
 
+    // Multiplicative bias applied to room acoustic targets (used by InteractionManager
+    // to muffle audio when the player is seated). Defaults to identity.
+    this.acousticBias = { cutoff: 1, volume: 1 };
+
     // Room boundaries and HUD definitions for acoustic occlusion.
     this.rooms = ROOMS;
 
@@ -359,6 +363,17 @@ export class AudioManager {
     } else {
       this.targetVolume = detectedRoom.volume;
     }
+
+    this.targetCutoff *= this.acousticBias.cutoff;
+    this.targetVolume *= this.acousticBias.volume;
+  }
+
+  /**
+   * Plays a short bell-like chime (used as audible feedback for interactions).
+   */
+  playChime() {
+    if (!this.audioContext) return;
+    this._synthesizeLead(this.audioContext.currentTime + 0.02, 523.25, 0.13);
   }
 
   /**
