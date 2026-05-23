@@ -15,9 +15,8 @@ export class TextureGenerator {
 
   /**
    * Generates a premium interlocking hardwood oak plank floor texture.
-   * Matches signature of generateNeonGrid for zero-effort integration.
    */
-  static generateNeonGrid(borderColor = '#7d4c37', tileColor = '#4e2d1a', size = 128) {
+  static generateHardwoodFloor(_borderColor = '#7d4c37', _tileColor = '#4e2d1a', size = 128) {
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
@@ -42,11 +41,11 @@ export class TextureGenerator {
 
       for (let p = 0; p <= numPlanks; p++) {
         const x = startX + p * plankW;
-        
+
         // Randomize wood shade slightly for board variations
-        const rand = (Math.sin(r * 12.3 + x * 45.7) * 0.12);
+        const rand = Math.sin(r * 12.3 + x * 45.7) * 0.12;
         const plankColor = this._adjustBrightness(oakBase, rand);
-        
+
         // Draw the main board wood block
         ctx.fillStyle = plankColor;
         ctx.fillRect(x + 1, y + 1, plankW - 2, rowH - 2);
@@ -58,15 +57,15 @@ export class TextureGenerator {
         // Draw horizontal wood grain lines inside each plank
         ctx.strokeStyle = 'rgba(0, 0, 0, 0.12)';
         ctx.lineWidth = 1;
-        
+
         const seedValue = Math.abs(Math.sin(r * 4.9 + p * 8.1));
         const numGrains = 2 + Math.floor(seedValue * 3);
-        
+
         for (let g = 0; g < numGrains; g++) {
           const gy = y + 2 + ((seedValue * 31 + g * 17) % (rowH - 6));
           const gx1 = x + 3 + ((seedValue * 57 + g * 23) % (plankW - 16));
           const gl = 8 + ((seedValue * 97 + g * 11) % (plankW * 0.45));
-          
+
           if (gx1 + gl < x + plankW - 2) {
             ctx.beginPath();
             ctx.moveTo(gx1, gy);
@@ -78,8 +77,8 @@ export class TextureGenerator {
         // Draw a knot or randomized wood blemish occasionally
         if (seedValue > 0.75) {
           ctx.fillStyle = 'rgba(40, 20, 10, 0.35)';
-          const kx = x + 6 + (seedValue * 123 % (plankW - 12));
-          const ky = y + 3 + (seedValue * 456 % (rowH - 6));
+          const kx = x + 6 + ((seedValue * 123) % (plankW - 12));
+          const ky = y + 3 + ((seedValue * 456) % (rowH - 6));
           ctx.fillRect(Math.floor(kx), Math.floor(ky), 3, 2);
         }
       }
@@ -89,7 +88,7 @@ export class TextureGenerator {
   }
 
   /**
-   * Generates a cozy brick wall texture, translating cyberpunk coordinates into rich terracotta clays or slate stones.
+   * Generates a cozy brick wall texture using rich terracotta clays or slate stones.
    */
   static generateBrickWall(baseColorHex = '#1e1a3a', mortarColorHex = '#080512', size = 128) {
     const canvas = document.createElement('canvas');
@@ -97,7 +96,7 @@ export class TextureGenerator {
     canvas.height = size;
     const ctx = canvas.getContext('2d');
 
-    // Intercept and map old neon colors to warm natural colors
+    // Map legacy material inputs to warm natural colors
     let base = baseColorHex;
     let mortar = mortarColorHex;
 
@@ -127,13 +126,13 @@ export class TextureGenerator {
     for (let r = 0; r < numRows; r++) {
       const isOffset = r % 2 === 1;
       const startX = isOffset ? -colW / 2 : 0;
-      
+
       for (let c = 0; c <= numCols; c++) {
         const x = startX + c * colW;
         const y = r * rowH;
 
         // Structured randomized brightness using trig coordinates to lock across re-renders
-        const rand = (Math.sin(r * 34.5 + c * 89.1) * 0.15);
+        const rand = Math.sin(r * 34.5 + c * 89.1) * 0.15;
         ctx.fillStyle = this._adjustBrightness(base, rand);
         ctx.fillRect(x + 2, y + 2, colW - 4, rowH - 2);
 
@@ -155,7 +154,7 @@ export class TextureGenerator {
   /**
    * Generates a vintage wood-panel turntable and analog mixer console.
    */
-  static generateDJDecks(size = 256) {
+  static generateTurntableConsole(size = 256) {
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
@@ -183,10 +182,10 @@ export class TextureGenerator {
     // Draw record platters on the brass plates
     const platters = [
       { cx: size * 0.33, cy: size * 0.5 },
-      { cx: size * 0.75, cy: size * 0.5 }
+      { cx: size * 0.75, cy: size * 0.5 },
     ];
 
-    platters.forEach(p => {
+    platters.forEach((p) => {
       // Cast shadow under platter
       ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
       ctx.beginPath();
@@ -209,7 +208,7 @@ export class TextureGenerator {
       ctx.strokeStyle = '#1d1d21';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.arc(p.cx, p.cy, size * 0.10, 0, Math.PI * 2);
+      ctx.arc(p.cx, p.cy, size * 0.1, 0, Math.PI * 2);
       ctx.stroke();
       ctx.beginPath();
       ctx.arc(p.cx, p.cy, size * 0.06, 0, Math.PI * 2);
@@ -241,7 +240,7 @@ export class TextureGenerator {
     ctx.fillStyle = '#2d150d';
     ctx.fillRect(size * 0.44, 12, size * 0.08, size - 24);
 
-    // Warm-backlit Analog VU Meters (replace cyber LEDs)
+    // Warm-backlit Analog VU Meters
     // Meter bezels
     ctx.fillStyle = '#221910';
     ctx.fillRect(size * 0.44 + 2, 24, size * 0.08 - 4, 16);
@@ -268,7 +267,7 @@ export class TextureGenerator {
     // Solid metal slide adjustments
     ctx.fillStyle = '#100a06';
     ctx.fillRect(size * 0.46, 80, 4, 48);
-    ctx.fillRect(size * 0.50, 80, 4, 48);
+    ctx.fillRect(size * 0.5, 80, 4, 48);
 
     // Brass knobs
     ctx.fillStyle = '#d4af37';
@@ -330,7 +329,7 @@ export class TextureGenerator {
     // Outer brass mounting bezel
     ctx.fillStyle = '#8a6c55';
     ctx.beginPath();
-    ctx.arc(cx, cy, size * 0.30, 0, Math.PI * 2);
+    ctx.arc(cx, cy, size * 0.3, 0, Math.PI * 2);
     ctx.fill();
 
     // Main charcoal paper pulp cone
@@ -367,7 +366,12 @@ export class TextureGenerator {
   /**
    * Generates detailed natural pixel-art faces for cozy visitors.
    */
-  static generateNPCFace(skinColor = '#f5c396', eyeColor = '#111122', glassesColor = null, size = 64) {
+  static generateNPCFace(
+    skinColor = '#f5c396',
+    eyeColor = '#111122',
+    glassesColor = null,
+    size = 64
+  ) {
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
@@ -435,8 +439,10 @@ export class TextureGenerator {
     // Natural hair bounds (blonde, brunette, ginger, dark hair)
     const hairSeed = Math.abs(Math.sin(skinColor.length * 100));
     let hairColor = '#2c1e15'; // dark brunette
-    if (hairSeed > 0.75) hairColor = '#d29a53'; // warm gold blonde
-    else if (hairSeed > 0.5) hairColor = '#b55a30'; // ginger auburn
+    if (hairSeed > 0.75)
+      hairColor = '#d29a53'; // warm gold blonde
+    else if (hairSeed > 0.5)
+      hairColor = '#b55a30'; // ginger auburn
     else if (hairSeed > 0.25) hairColor = '#50413c'; // light brown
 
     ctx.fillStyle = hairColor;
@@ -450,7 +456,12 @@ export class TextureGenerator {
   /**
    * Generates warm, cozy woolen clothing styles: plaid flannels, argyle diamonds, and heavy cable knits.
    */
-  static generateNPCOutfit(mainColor = '#ff0055', secondaryColor = '#00f0ff', type = 'jacket', size = 64) {
+  static generateNPCOutfit(
+    mainColor = '#ff0055',
+    secondaryColor = '#00f0ff',
+    type = 'jacket',
+    size = 64
+  ) {
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
@@ -482,7 +493,7 @@ export class TextureGenerator {
         ctx.fillRect(size / 2 - 2, y, 4, 4);
       }
     } else if (type === 'stripes') {
-      // Cozy lumberjack plaid flannel print (replaces cyber-stripes)
+      // Cozy lumberjack plaid flannel print
       ctx.fillStyle = secondaryColor;
       const stripeW = 8;
       for (let i = 4; i < size; i += 16) {
@@ -522,8 +533,10 @@ export class TextureGenerator {
       ctx.lineWidth = 1;
       ctx.setLineDash([2, 2]);
       ctx.beginPath();
-      ctx.moveTo(0, 0); ctx.lineTo(size, size);
-      ctx.moveTo(size, 0); ctx.lineTo(0, size);
+      ctx.moveTo(0, 0);
+      ctx.lineTo(size, size);
+      ctx.moveTo(size, 0);
+      ctx.lineTo(0, size);
       ctx.stroke();
       ctx.setLineDash([]);
     } else if (type === 'pants') {
@@ -578,7 +591,7 @@ export class TextureGenerator {
     const cx = size / 2;
     const cy = size / 2;
 
-    if (text === 'RAVE' || text === 'BOTANICAL') {
+    if (text === 'LOUNGE' || text === 'BOTANICAL') {
       // Paint an elegant leafy fern branch
       ctx.strokeStyle = '#1b4d22';
       ctx.lineWidth = 3;
@@ -594,10 +607,10 @@ export class TextureGenerator {
         { lx: cx - 8, ly: cy + 7, rx: cx - 18, ry: cy + 1 },
         { lx: cx - 2, ly: cy - 3, rx: cx - 12, ry: cy - 9 },
         { lx: cx + 4, ly: cy - 13, rx: cx - 4, ry: cy - 19 },
-        { lx: cx + 12, ly: cy - 21, rx: cx + 5, ry: cy - 25 }
+        { lx: cx + 12, ly: cy - 21, rx: cx + 5, ry: cy - 25 },
       ];
 
-      leaflets.forEach(l => {
+      leaflets.forEach((l) => {
         ctx.beginPath();
         ctx.ellipse(l.lx, l.ly, 6, 3, -Math.PI / 4, 0, Math.PI * 2);
         ctx.fill();
@@ -605,7 +618,6 @@ export class TextureGenerator {
         ctx.ellipse(l.rx, l.ry, 6, 3, Math.PI / 6, 0, Math.PI * 2);
         ctx.fill();
       });
-
     } else if (text === 'VIP' || text === 'EVERGREEN') {
       // Paint a serene spruce alpine fir pine tree
       ctx.beginPath();
@@ -639,7 +651,6 @@ export class TextureGenerator {
       ctx.lineTo(cx + 22, cy + 22);
       ctx.closePath();
       ctx.fill();
-
     } else {
       // Paint a warm minimalist rising sun sunset landscape
       // Rising warm sun
