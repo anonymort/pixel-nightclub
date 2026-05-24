@@ -1,4 +1,6 @@
-import { ROOMS, getRoomForPosition } from '../config/experience.js';
+import { AUDIO_MOODS, ROOMS, getRoomForPosition } from '../config/experience.js';
+
+export { AUDIO_MOODS };
 
 export class AudioManager {
   constructor() {
@@ -9,8 +11,8 @@ export class AudioManager {
 
     // Sequencer States
     this.isPlaying = false;
-    this.bpm = 80; // Slowed down from 120 to 80 BPM (cozy acoustic chill)
-    this.stepTime = 60 / this.bpm / 4; // 16th note step time (0.1875s for 80BPM)
+    this.bpm = 80;
+    this.stepTime = 60 / this.bpm / 4;
     this.currentStep = 0;
     this.nextStepTime = 0.0;
     this.lookAhead = 0.1; // How far ahead to schedule audio (seconds)
@@ -41,6 +43,54 @@ export class AudioManager {
     this.noiseBuffer = null;
     this.hiHatFilter = null;
     this.subBassFilter = null;
+
+    this.moods = AUDIO_MOODS;
+    this.selectedMoodKey = this.moods[0].key;
+    this.activeMoodKey = this.selectedMoodKey;
+    this.pendingMoodKey = null;
+    this._applyMood(this.activeMoodKey);
+  }
+
+  getMoodOptions() {
+    return this.moods;
+  }
+
+  getSelectedMood() {
+    return this.moods.find((mood) => mood.key === this.selectedMoodKey) || this.moods[0];
+  }
+
+  getActiveMood() {
+    return this.moods.find((mood) => mood.key === this.activeMoodKey) || this.moods[0];
+  }
+
+  setMood(key) {
+    const mood = this.moods.find((entry) => entry.key === key);
+    if (!mood) return null;
+
+    this.selectedMoodKey = mood.key;
+
+    if (this.isPlaying) {
+      this.pendingMoodKey = mood.key;
+    } else {
+      this._applyMood(mood.key);
+      this.pendingMoodKey = null;
+    }
+
+    return mood;
+  }
+
+  cycleMood() {
+    const currentIndex = this.moods.findIndex((mood) => mood.key === this.selectedMoodKey);
+    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % this.moods.length;
+    return this.setMood(this.moods[nextIndex].key);
+  }
+
+  _applyMood(key) {
+    const mood = this.moods.find((entry) => entry.key === key) || this.moods[0];
+    this.activeMoodKey = mood.key;
+    this.bpm = mood.bpm;
+    this.stepTime = 60 / this.bpm / 4;
+    return mood;
   }
 
   /**
@@ -116,6 +166,10 @@ export class AudioManager {
    */
   _advanceStep() {
     this.currentStep = (this.currentStep + 1) % 16;
+    if (this.pendingMoodKey) {
+      this._applyMood(this.pendingMoodKey);
+      this.pendingMoodKey = null;
+    }
     this.nextStepTime += this.stepTime;
   }
 
@@ -125,6 +179,12 @@ export class AudioManager {
    * @param {number} time - Exact audio context timeline mark to trigger synthesis
    */
   _scheduleStep(step, time) {
+    const mood = this.getActiveMood();
+    const percussion = mood.percussion;
+    const bassPattern = mood.bassPattern;
+    const bassVolume = mood.bassVolume;
+    const lead = mood.lead;
+
     // 1. Cozy Kick Drum (Wooden stomp heartbeat kick on steps 0, 4, 8, 12)
     if (step % 4 === 0) {
       this._synthesizeKick(time);
@@ -149,60 +209,45 @@ export class AudioManager {
 
     // 2. Brushed Shaker Hi-Hat (Offbeat hat on steps 2, 6, 10, 14; subtle tick on others)
     if (step % 4 === 2) {
-      this._synthesizeHiHat(time, 0.16); // Soft offbeat brushed shaker
+      this._synthesizeHiHat(time, percussion.offbeat);
     } else if (step % 2 === 1) {
-      this._synthesizeHiHat(time, 0.04); // Quiet rhythmic tick
+      this._synthesizeHiHat(time, percussion.tick);
     }
 
     // 3. Acoustic Double-Bass (Triangle warm woody pluck)
-    // Plays a syncopated, walking acoustic jazz pattern
-    const bassPattern = [
-      130.81 / 4, // C1 (step 0)
-      0,
-      130.81 / 4, // C1 (step 2)
-      196.0 / 4, // G1 (step 3)
-      155.56 / 4, // Eb1 (step 4)
-      0,
-      155.56 / 4, // Eb1 (step 6)
-      233.08 / 4, // Bb1 (step 7)
-      196.0 / 4, // G1 (step 8)
-      0,
-      196.0 / 4, // G1 (step 10)
-      293.66 / 4, // D2 (step 11)
-      174.61 / 4, // F1 (step 12)
-      0,
-      174.61 / 4, // F1 (step 14)
-      220.0 / 4, // A1 (step 15)
-    ];
     const bassFreq = bassPattern[step];
     if (bassFreq > 0) {
-      this._synthesizeSubBass(time, bassFreq, 0.25);
+      this._synthesizeSubBass(time, bassFreq, bassVolume);
     }
 
     // 4. Soothing Rhodes Chords & Mellow Melodies
     if (step === 0) {
-      // Play C Minor 7 chord (warm and lush)
-      this._synthesizeLead(time, 130.81, 0.15); // C3
-      this._synthesizeLead(time, 155.56, 0.13); // Eb3
-      this._synthesizeLead(time, 196.0, 0.13); // G3
-      this._synthesizeLead(time, 233.08, 0.11); // Bb3
+      this._playChord(time, [
+        [130.81, 0.15 * lead.chordScale],
+        [155.56, 0.13 * lead.chordScale],
+        [196.0, 0.13 * lead.chordScale],
+        [233.08, 0.11 * lead.chordScale],
+      ]);
     } else if (step === 4) {
-      // Soft melodic top note
-      this._synthesizeLead(time, 293.66, 0.12); // D4
+      this._synthesizeLead(time, 293.66, 0.12 * lead.topNoteScale);
     } else if (step === 8) {
-      // Play G Minor 7 chord
-      this._synthesizeLead(time, 196.0, 0.15); // G3
-      this._synthesizeLead(time, 233.08, 0.13); // Bb3
-      this._synthesizeLead(time, 293.66, 0.13); // D4
-      this._synthesizeLead(time, 349.23, 0.11); // F4
+      this._playChord(time, [
+        [196.0, 0.15 * lead.chordScale],
+        [233.08, 0.13 * lead.chordScale],
+        [293.66, 0.13 * lead.chordScale],
+        [349.23, 0.11 * lead.chordScale],
+      ]);
     } else if (step === 12) {
-      // High bell transition note
-      this._synthesizeLead(time, 392.0, 0.12); // G4
+      this._synthesizeLead(time, 392.0, 0.12 * lead.topNoteScale);
     } else if (step === 2 || step === 6 || step === 10 || step === 14) {
-      // Gentle acoustic filler notes
-      const fillers = [155.56, 196.0, 233.08, 293.66];
-      const freq = fillers[(step / 2) % fillers.length];
-      this._synthesizeLead(time, freq, 0.07);
+      const freq = lead.fillerNotes[(step / 2) % lead.fillerNotes.length];
+      this._synthesizeLead(time, freq, 0.07 * lead.fillerScale);
+    }
+  }
+
+  _playChord(time, notes) {
+    for (const [frequency, volume] of notes) {
+      this._synthesizeLead(time, frequency, volume);
     }
   }
 

@@ -217,6 +217,12 @@ export function updatePhotographerFlash(npc, time, isActive) {
 export function getNpcUpdateMode(npc, playerPos) {
   if (!playerPos) return 'full';
 
+  // Wanderers need full updates while moving so their walk state machine,
+  // path progression, and limb swings do not freeze at a distance.
+  if (npc.isWanderer && npc.state === 'walking') {
+    return 'full';
+  }
+
   const dx = playerPos.x - npc.group.position.x;
   const dz = playerPos.z - npc.group.position.z;
   const dist = Math.sqrt(dx * dx + dz * dz);
@@ -438,7 +444,9 @@ export class NPCManager {
     this.playerPushStrength = 1.25;
     this.npcCrowdRadius = 0.58;
     this._lastPlayerPos = null;
+    this._activeNpcs = [];
     this.photographerTriggerState = null;
+    this.photographers = [];
 
     // Pre-allocate shared NPC geometries to optimize draw calls and GPU vertex buffer uploads
     this.torsoGeo = new THREE.BoxGeometry(0.44, 0.6, 0.24);
@@ -712,6 +720,7 @@ export class NPCManager {
       this._attachCamera(photographer);
       this.scene.add(photographer.group);
       this.npcs.push(photographer);
+      this.photographers.push(photographer);
     });
 
     // 4. Spawn 2 Bar Patrons seated on stools (x: 7.2 & 11.4, z: 5.8)
@@ -775,6 +784,7 @@ export class NPCManager {
 
     this.scene.add(selector.group);
     this.npcs.push(selector);
+    this.selector = selector;
 
     // 6. Spawn 1 Bartender behind the counter (x: 9.0, z: 8.8) facing -Z (rotation.y = 0)
     const skin = '#fcd2a1';
@@ -808,6 +818,19 @@ export class NPCManager {
   triggerBartenderFlourish() {
     if (!this.bartender) return;
     this.bartender.flourishUntil = performance.now() * 0.001 + 1.2;
+  }
+
+  triggerSelectorFlourish() {
+    if (!this.selector) return;
+    this.selector.flourishUntil = performance.now() * 0.001 + 1.0;
+  }
+
+  triggerPhotographerSnapshot(index = 0) {
+    const photographer = this.photographers?.[index];
+    if (!photographer) return;
+    const flashUntil = performance.now() * 0.001 + 0.18;
+    photographer.snapshotFlashUntil = flashUntil;
+    photographer.flashUntil = Math.max(photographer.flashUntil ?? 0, flashUntil);
   }
 
   /**
@@ -994,7 +1017,12 @@ export class NPCManager {
     }
 
     if (playerPos) {
-      this._lastPlayerPos = { x: playerPos.x, z: playerPos.z };
+      if (this._lastPlayerPos) {
+        this._lastPlayerPos.x = playerPos.x;
+        this._lastPlayerPos.z = playerPos.z;
+      } else {
+        this._lastPlayerPos = { x: playerPos.x, z: playerPos.z };
+      }
       this.photographerTriggerState = updatePhotographerTriggerState(
         this.photographerTriggerState,
         playerPos.x
@@ -1012,13 +1040,17 @@ export class NPCManager {
           this._applyPlayerPush(npc, playerPos, playerVelX, playerVelZ, playerSpeed, dt);
         }
       });
-      const activeNpcs = this.npcs.filter((npc) => (npc.updateMode || 'full') !== 'sleep');
-      this._resolveNpcCrowding(dt, activeNpcs);
+      const activeNpcs = this._activeNpcs;
+      activeNpcs.length = 0;
       this.npcs.forEach((npc) => {
         if ((npc.updateMode || 'full') !== 'sleep') {
-          this._applyAnchorReturn(npc, dt);
+          activeNpcs.push(npc);
         }
       });
+      this._resolveNpcCrowding(dt, activeNpcs);
+      for (let i = 0; i < activeNpcs.length; i++) {
+        this._applyAnchorReturn(activeNpcs[i], dt);
+      }
       this._syncNpcContactColliders();
     }
 
@@ -1099,7 +1131,9 @@ export class NPCManager {
       if (npc.danceType === 75) {
         const isPhotographing = this.photographerTriggerState?.isActive ?? false;
         const didFlash = updatePhotographerFlash(npc, time, isPhotographing);
-        const flashActive = isPhotographing && time < (npc.flashUntil ?? 0);
+        const snapshotFlashActive = time < (npc.snapshotFlashUntil ?? 0);
+        const ambientFlashActive = isPhotographing && time < (npc.flashUntil ?? 0);
+        const flashActive = snapshotFlashActive || ambientFlashActive;
         const flashPop = flashActive ? 1 : 0;
 
         npc.group.position.y = Math.sin(time * 2.2 + (npc.photographerIndex ?? 0)) * 0.01;
@@ -1136,18 +1170,23 @@ export class NPCManager {
 
       // 4. VINYL MUSIC SELECTOR TURNTABLE ANIMS (case 99)
       if (npc.danceType === 99) {
+        const flourish = Math.max(0, (npc.flourishUntil ?? 0) - time);
+        const flourishScale = 1 + flourish * 1.75;
         const bobSpeed = 3.5;
         npc.group.position.y =
-          0.45 + Math.abs(Math.sin(time * bobSpeed)) * 0.04 + this.beatIntensity * 0.06;
-        npc.joints.head.rotation.x = Math.sin(time * bobSpeed) * 0.08 + this.beatIntensity * 0.22;
+          0.45 +
+          Math.abs(Math.sin(time * bobSpeed)) * 0.04 * flourishScale +
+          this.beatIntensity * 0.06 * flourishScale;
+        npc.joints.head.rotation.x =
+          Math.sin(time * bobSpeed) * 0.08 + this.beatIntensity * 0.22 * flourishScale;
 
         npc.joints.leftArm.rotation.x =
-          -0.8 + Math.sin(time * 1.5) * 0.15 - this.beatIntensity * 0.25;
-        npc.joints.leftArm.rotation.y = -0.15 + Math.sin(time * 0.8) * 0.1;
+          -0.8 + Math.sin(time * 1.5) * 0.15 * flourishScale - this.beatIntensity * 0.25;
+        npc.joints.leftArm.rotation.y = -0.15 + Math.sin(time * 0.8) * 0.1 * flourishScale;
 
         npc.joints.rightArm.rotation.x =
-          -0.8 + Math.cos(time * 1.2) * 0.15 - this.beatIntensity * 0.25;
-        npc.joints.rightArm.rotation.y = 0.15 + Math.cos(time * 0.6) * 0.1;
+          -0.8 + Math.cos(time * 1.2) * 0.15 * flourishScale - this.beatIntensity * 0.25;
+        npc.joints.rightArm.rotation.y = 0.15 + Math.cos(time * 0.6) * 0.1 * flourishScale;
         return;
       }
 

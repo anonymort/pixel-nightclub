@@ -184,6 +184,15 @@ describe('NPCManager performance helpers', () => {
     ).toBe('full');
   });
 
+  it('keeps wanderers on full updates while they are mid-walk so poses do not freeze', () => {
+    expect(
+      getNpcUpdateMode(
+        createNpc({ role: 'wanderer', isWanderer: true, state: 'walking', x: 0, z: 0 }),
+        new THREE.Vector3(11, 0, 0)
+      )
+    ).toBe('full');
+  });
+
   it('resolves crowding only for active NPCs', () => {
     const manager = Object.create(NPCManager.prototype);
     const active = createNpc({
@@ -458,5 +467,17 @@ describe('photographer entrance behavior', () => {
 
     expect(photographer.flashUntil).toBe(0);
     expect(photographer.nextFlashTime).toBeCloseTo(2.6);
+  });
+
+  it('supports an explicit souvenir flash without breaking ambient flash state', () => {
+    vi.spyOn(performance, 'now').mockReturnValue(1000);
+
+    const manager = Object.create(NPCManager.prototype);
+    manager.photographers = [createNpc({ id: 'photographer-1', snapshotFlashUntil: 0 })];
+
+    manager.triggerPhotographerSnapshot(0);
+
+    expect(manager.photographers[0].snapshotFlashUntil).toBeCloseTo(1.18);
+    expect(manager.photographers[0].flashUntil).toBeCloseTo(1.18);
   });
 });

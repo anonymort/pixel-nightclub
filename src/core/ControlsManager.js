@@ -53,6 +53,9 @@ export class ControlsManager {
 
     // Player Physics States
     this.velocity = new THREE.Vector3();
+    this._direction = new THREE.Vector3();
+    this._front = new THREE.Vector3();
+    this._side = new THREE.Vector3();
     this.keys = {
       forward: false,
       backward: false,
@@ -312,9 +315,9 @@ export class ControlsManager {
     }
 
     // 1. Calculate input heading vector relative to camera direction
-    const direction = new THREE.Vector3();
-    const front = new THREE.Vector3();
-    const side = new THREE.Vector3();
+    const direction = this._direction.set(0, 0, 0);
+    const front = this._front.set(0, 0, 0);
+    const side = this._side.set(0, 0, 0);
 
     // Project camera front and side directions onto the flat floor (y = 0 plane)
     this.camera.getWorldDirection(front);

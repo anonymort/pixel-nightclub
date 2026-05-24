@@ -11,6 +11,8 @@ const WORLD_SECTION_BOUNDS = {
 };
 
 const DEFAULT_ASSET_PRELOAD_MARGIN = 12;
+const SECTION_REFRESH_INTERVAL = 0.2;
+const SECTION_REFRESH_DISTANCE_SQ = 0.75 * 0.75;
 
 export function getActiveWorldSections(playerPos, preloadMargin = DEFAULT_ASSET_PRELOAD_MARGIN) {
   const active = new Set(['core']);
@@ -49,6 +51,8 @@ export class MapBuilder {
     this.activeSections = new Set();
     this.lazySectionBuilders = new Map();
     this.builtSections = new Set(['core']);
+    this.sectionRefreshAccumulator = 0;
+    this.lastSectionProbe = null;
 
     // Caches to prevent redundant geometry allocations
     this.geometryCache = new Map();
@@ -488,7 +492,22 @@ export class MapBuilder {
     this.update(0, { x: -13, z: 0 });
   }
 
-  update(_dt, playerPos) {
+  update(dt = 0, playerPos) {
+    if (playerPos && this.activeSections.size > 0) {
+      const probe = this.lastSectionProbe;
+      const dx = probe ? playerPos.x - probe.x : Infinity;
+      const dz = probe ? playerPos.z - probe.z : Infinity;
+      this.sectionRefreshAccumulator += dt;
+
+      if (
+        probe &&
+        dx * dx + dz * dz < SECTION_REFRESH_DISTANCE_SQ &&
+        this.sectionRefreshAccumulator < SECTION_REFRESH_INTERVAL
+      ) {
+        return;
+      }
+    }
+
     const activeSections = getActiveWorldSections(playerPos);
     for (const section of activeSections) {
       const buildSection = this.lazySectionBuilders.get(section);
@@ -501,6 +520,10 @@ export class MapBuilder {
       group.visible = activeSections.has(section);
     }
     this.activeSections = activeSections;
+    if (playerPos) {
+      this.lastSectionProbe = { x: playerPos.x, z: playerPos.z };
+      this.sectionRefreshAccumulator = 0;
+    }
   }
 
   /**

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { INTERACTION_COPY, SOUVENIR_SNAPSHOT_COPY } from '../config/experience.js';
 
 const DRINK_NAMES = ['WHISKEY, NEAT', 'OLD FASHIONED', 'HOT TODDY', 'GINGER FIZZ'];
 const DEFAULT_FOV = Math.PI / 3; // ±60°
@@ -20,6 +21,7 @@ export class InteractionManager {
     this.currentTarget = null;
     this.seatedSpec = null;
     this.drinkCursor = 0;
+    this.onTakeSnapshot = null;
 
     this._forward = new THREE.Vector3();
   }
@@ -40,13 +42,13 @@ export class InteractionManager {
     return { label: this.currentTarget.label, key: 'E' };
   }
 
-  update(_dt) {
+  async update(_dt) {
     const camera = this.controls?.camera;
     if (!camera) return;
 
     if (this.controls.interactQueued) {
       this.controls.interactQueued = false;
-      this._dispatch();
+      await this._dispatch();
     }
 
     if (this.seatedSpec) {
@@ -57,7 +59,7 @@ export class InteractionManager {
     this.currentTarget = this._findBestTarget(camera);
   }
 
-  _dispatch() {
+  async _dispatch() {
     if (this.seatedSpec) {
       this._stand();
       return;
@@ -66,6 +68,8 @@ export class InteractionManager {
     if (!target) return;
     if (target.verb === 'sit') this._sit(target);
     else if (target.verb === 'order') this._order();
+    else if (target.verb === 'selectMood') this._selectMood();
+    else if (target.verb === 'takeSnapshot') await this._takeSnapshot();
   }
 
   _sit(spec) {
@@ -92,6 +96,43 @@ export class InteractionManager {
     }
     if (typeof this.npcManager?.triggerBartenderFlourish === 'function') {
       this.npcManager.triggerBartenderFlourish();
+    }
+  }
+
+  _selectMood() {
+    const mood =
+      typeof this.audio?.cycleMood === 'function' ? this.audio.cycleMood() : null;
+    if (!mood) return;
+    if (typeof this.audio?.playChime === 'function') this.audio.playChime();
+    if (typeof this.uiManager?.showFloatingPrompt === 'function') {
+      this.uiManager.showFloatingPrompt(
+        `${INTERACTION_COPY.nowSpinningPrefix} ${mood.name}`,
+        2400
+      );
+    }
+    if (typeof this.npcManager?.triggerSelectorFlourish === 'function') {
+      this.npcManager.triggerSelectorFlourish();
+    }
+  }
+
+  async _takeSnapshot() {
+    if (typeof this.uiManager?.showFloatingPrompt === 'function') {
+      this.uiManager.showFloatingPrompt(SOUVENIR_SNAPSHOT_COPY.loadingPrompt, 1400);
+    }
+
+    if (typeof this.npcManager?.triggerPhotographerSnapshot === 'function') {
+      this.npcManager.triggerPhotographerSnapshot(0);
+    }
+
+    const snapshot =
+      typeof this.onTakeSnapshot === 'function' ? await this.onTakeSnapshot() : null;
+
+    if (typeof this.audio?.playChime === 'function') this.audio.playChime();
+    if (
+      snapshot?.title &&
+      typeof this.uiManager?.showFloatingPrompt === 'function'
+    ) {
+      this.uiManager.showFloatingPrompt(snapshot.title, 2600);
     }
   }
 

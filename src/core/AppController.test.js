@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createAppController } from './AppController.js';
 
 function createFakeSceneManager() {
@@ -19,6 +19,10 @@ function createFakeSceneManager() {
 }
 
 describe('createAppController', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it('builds systems, registers updatables, exposes debug globals, and disposes cleanly', () => {
     const animationCallbacks = [];
     const disposables = [];
@@ -95,5 +99,97 @@ describe('createAppController', () => {
       expect(disposable.dispose).toHaveBeenCalledTimes(1);
     }
     expect(controller.cancelAnimationFrame).toHaveBeenCalledWith(42);
+  });
+
+  it('captures a souvenir snapshot with a curated camera pose and restores the player view', async () => {
+    const cameraPosition = {
+      x: -13,
+      y: 1.7,
+      z: 0,
+      set(x, y, z) {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+      },
+    };
+    const cameraRotation = { x: 0.15, y: -0.2, z: 0.05 };
+    const camera = {
+      position: cameraPosition,
+      rotation: cameraRotation,
+      lookAt: vi.fn(),
+      updateProjectionMatrix: vi.fn(),
+    };
+    const sceneManager = {
+      scene: { id: 'scene' },
+      camera,
+      renderer: {
+        domElement: {
+          toBlob: vi.fn((callback) => callback(new Blob(['snapshot'], { type: 'image/png' }))),
+        },
+      },
+      updatables: [],
+      addUpdatable(object) {
+        this.updatables.push(object);
+      },
+      update: vi.fn(),
+      renderFrame: vi.fn(),
+      dispose: vi.fn(),
+    };
+    const audioManager = {
+      setPlayerPosition: vi.fn(),
+      dispose: vi.fn(),
+    };
+    const controlsManager = {
+      update: vi.fn(),
+      dispose: vi.fn(),
+      domElement: { id: 'canvas' },
+      isLocked: true,
+      velocity: { set: vi.fn() },
+    };
+    const npcManager = {
+      update: vi.fn(),
+      triggerPhotographerSnapshot: vi.fn(),
+    };
+    const uiManager = {
+      update: vi.fn(),
+      dispose: vi.fn(),
+      showSnapshotPreview: vi.fn(async (payload) => payload),
+    };
+
+    vi.stubGlobal('document', {
+      exitPointerLock: vi.fn(),
+    });
+
+    const controller = createAppController({
+      exposeDebugGlobals: false,
+      requestAnimationFrame: vi.fn(() => 1),
+      cancelAnimationFrame: vi.fn(),
+      now: vi.fn(() => 1000),
+      createSceneManager: () => sceneManager,
+      createAudioManager: () => audioManager,
+      createControlsManager: () => controlsManager,
+      createMapBuilder: () => ({ tileMaterials: [], build: vi.fn() }),
+      createLightingManager: () => ({ update: vi.fn(), dispose: vi.fn() }),
+      createChandelier: () => ({ update: vi.fn(), dispose: vi.fn() }),
+      createNPCManager: () => npcManager,
+      createUIManager: () => uiManager,
+      createInteractionManager: () => ({
+        update: vi.fn(),
+        dispose: vi.fn(),
+        registerInteractable: vi.fn(),
+      }),
+    });
+
+    const result = await controller.takeSouvenirSnapshot();
+
+    expect(document.exitPointerLock).toHaveBeenCalledTimes(1);
+    expect(sceneManager.renderFrame).toHaveBeenCalledTimes(2);
+    expect(camera.lookAt).toHaveBeenCalledTimes(1);
+    expect(uiManager.showSnapshotPreview).toHaveBeenCalledTimes(1);
+    expect(result.fileName).toBe('hearthside-lounge-souvenir.png');
+    expect(camera.position.x).toBe(-13);
+    expect(camera.position.y).toBe(1.7);
+    expect(camera.position.z).toBe(0);
+    expect(camera.rotation).toEqual({ x: 0.15, y: -0.2, z: 0.05 });
   });
 });

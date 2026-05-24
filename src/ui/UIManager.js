@@ -1,4 +1,5 @@
 import { requestPointerLockSafely } from '../core/ControlsManager.js';
+import { SOUVENIR_SNAPSHOT_COPY } from '../config/experience.js';
 
 export class UIManager {
   /**
@@ -15,6 +16,9 @@ export class UIManager {
     this.promptTimeoutId = null;
     this.pointerLockTimeoutId = null;
     this.lastInteractText = '';
+    this.snapshotUrl = null;
+    this.snapshotFileName = '';
+    this.snapshotRestorePointerLock = false;
 
     this._bindElements();
     this._installEventHandlers();
@@ -31,6 +35,17 @@ export class UIManager {
     this.prompt = document.getElementById('floating-prompt');
     this.interactPrompt = document.getElementById('interact-prompt');
     this.beatPulse = document.getElementById('beat-pulse');
+    this.snapshotOverlay = document.getElementById('snapshot-overlay');
+    this.snapshotImage = document.getElementById('snapshot-image');
+    this.snapshotTitle = document.getElementById('snapshot-title');
+    this.snapshotMeta = document.getElementById('snapshot-meta');
+    this.snapshotClose = document.getElementById('snapshot-close');
+    this.snapshotSave = document.getElementById('snapshot-save');
+
+    if (this.snapshotTitle) this.snapshotTitle.textContent = SOUVENIR_SNAPSHOT_COPY.title;
+    if (this.snapshotMeta) this.snapshotMeta.textContent = SOUVENIR_SNAPSHOT_COPY.meta;
+    if (this.snapshotSave) this.snapshotSave.textContent = SOUVENIR_SNAPSHOT_COPY.saveAction;
+    if (this.snapshotClose) this.snapshotClose.textContent = SOUVENIR_SNAPSHOT_COPY.dismissAction;
 
     // Store references to the 12 EQ bars
     this.eqBars = [];
@@ -67,6 +82,16 @@ export class UIManager {
 
       this.btnStart.addEventListener('click', this._onStartClick);
     }
+
+    this._onSnapshotClose = () => {
+      this.dismissSnapshotPreview();
+    };
+    this._onSnapshotSave = () => {
+      this._handleSnapshotSave();
+    };
+
+    this.snapshotClose?.addEventListener('click', this._onSnapshotClose);
+    this.snapshotSave?.addEventListener('click', this._onSnapshotSave);
   }
 
   /**
@@ -89,6 +114,57 @@ export class UIManager {
 
   _showFloatingPrompt(text, duration) {
     this.showFloatingPrompt(text, duration);
+  }
+
+  async requestPointerLock() {
+    return requestPointerLockSafely(this.controls?.domElement);
+  }
+
+  async showSnapshotPreview({
+    blob,
+    title,
+    fileName,
+    meta = '',
+    restorePointerLock = false,
+  }) {
+    if (!blob) return null;
+    await this.dismissSnapshotPreview({ restorePointerLock: false });
+
+    this.snapshotUrl = URL.createObjectURL(blob);
+    this.snapshotFileName = fileName || 'hearthside-lounge-souvenir.png';
+    this.snapshotRestorePointerLock = restorePointerLock;
+
+    if (this.snapshotTitle) this.snapshotTitle.textContent = title || 'Souvenir Snapshot';
+    if (this.snapshotMeta) this.snapshotMeta.textContent = meta;
+    if (this.snapshotImage) this.snapshotImage.src = this.snapshotUrl;
+    this.snapshotOverlay?.classList.add('show');
+
+    return { url: this.snapshotUrl, fileName: this.snapshotFileName };
+  }
+
+  _handleSnapshotSave() {
+    if (!this.snapshotUrl) return;
+    const link = document.createElement('a');
+    link.href = this.snapshotUrl;
+    link.download = this.snapshotFileName || 'hearthside-lounge-souvenir.png';
+    link.click();
+  }
+
+  async dismissSnapshotPreview({ restorePointerLock } = {}) {
+    this.snapshotOverlay?.classList.remove('show');
+    if (this.snapshotImage) this.snapshotImage.src = '';
+    if (this.snapshotUrl) {
+      URL.revokeObjectURL(this.snapshotUrl);
+      this.snapshotUrl = null;
+    }
+
+    const shouldRestore =
+      restorePointerLock ?? this.snapshotRestorePointerLock;
+    this.snapshotRestorePointerLock = false;
+
+    if (shouldRestore) {
+      await this.requestPointerLock();
+    }
   }
 
   /**
@@ -148,9 +224,15 @@ export class UIManager {
     if (this.btnStart && this._onStartClick) {
       this.btnStart.removeEventListener('click', this._onStartClick);
     }
+    this.snapshotClose?.removeEventListener('click', this._onSnapshotClose);
+    this.snapshotSave?.removeEventListener('click', this._onSnapshotSave);
     clearTimeout(this.promptTimeoutId);
     clearTimeout(this.pointerLockTimeoutId);
     this.promptTimeoutId = null;
     this.pointerLockTimeoutId = null;
+    if (this.snapshotUrl) {
+      URL.revokeObjectURL(this.snapshotUrl);
+      this.snapshotUrl = null;
+    }
   }
 }

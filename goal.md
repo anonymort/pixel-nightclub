@@ -1,165 +1,102 @@
-# Contact Physics, Movement, and NPC Goal Plan
+# Souvenir Snapshot Goal Plan
 
 ## Goal
 
-Improve the first-person exploration feel by making player movement more predictable, contact physics less snaggy, and NPC behavior more spatially aware while preserving the cozy lounge experience.
+Add a photographer-driven souvenir snapshot feature that lets players trigger a framed keepsake photo from inside the lounge experience, using the existing interaction, UI, NPC, camera, and procedural atmosphere systems without breaking the cozy tone of the app.
 
 ## Success Criteria
 
-- [x] Player movement has explicit walk/run speed caps and frame-rate-stable acceleration/deceleration.
-- [x] Static contact with walls, furniture, doorways, stools, and props feels smooth rather than sticky.
-- [x] Player and NPC contact uses one shared collision model instead of unrelated push systems.
-- [x] NPCs keep believable personal space without drifting through furniture or blocking paths permanently.
-- [x] NPC reactions feel intentional, with field-of-view, cooldowns, and role-specific behavior.
-- [x] Movement, collision, and NPC steering have focused automated tests.
-- [x] Visual QA remains deterministic enough to compare screenshots between runs.
+- [x] The player sees a contextual prompt such as `Take a souvenir photo` near at least one photographer interaction zone.
+- [x] Pressing `E` triggers a brief, readable snapshot flow without confusing pointer-lock behavior.
+- [x] The photographer NPC gives visible feedback such as a flash or pose reaction when the photo is taken.
+- [x] The player sees a styled photo preview within about 1 second of triggering the interaction.
+- [x] The preview uses a curated composition rather than a raw first-person frame.
+- [x] The player can save the image locally from the browser.
+- [x] Existing `sit`, `order a drink`, and `Choose the vibe` interactions continue to work as they do now.
+- [x] The new behavior is covered by focused automated tests.
 
-## Phase 1: Movement Tuning
+## Phase 1: Snapshot Experience Model
 
-- [x] Extract player movement constants into named fields:
-  - [x] `walkMaxSpeed`
-  - [x] `runMaxSpeed`
-  - [x] `acceleration`
-  - [x] `deceleration`
-  - [x] `friction`
-- [x] Replace friction-only top speed with explicit velocity clamping.
-- [x] Make sprint multiplier match the intended design, likely `1.25x` unless a faster arcade feel is wanted.
-- [x] Use exponential damping for frame-rate-stable slowdown.
-- [x] Preserve existing pointer-lock and keyboard behavior.
-- [x] Add tests for:
-  - [x] walk speed cap
-  - [x] run speed cap
-  - [x] diagonal movement normalization
-  - [x] velocity decay when input stops
-  - [x] velocity reset on blur or pointer unlock
+- [x] Define the v1 snapshot flow in shared config or a small dedicated module.
+- [x] Decide the initial capture location and framing rules for the first souvenir photo.
+- [x] Keep the first slice intentionally narrow:
+  - [x] one photographer interaction zone
+  - [x] one curated camera composition
+  - [x] one postcard-style preview treatment
+- [x] Add player-facing copy for:
+  - [x] interaction prompt
+  - [x] loading/capture feedback
+  - [x] preview actions
 
-## Phase 2: Shared Contact Model
+## Phase 2: Interaction Wiring
 
-- [x] Add a small 2D contact layer for X/Z gameplay collisions.
-- [x] Define collider types:
-  - [x] `wall`
-  - [x] `furniture`
-  - [x] `npc`
-  - [x] `softNpc`
-  - [x] `trigger`
-- [x] Use circles or capsules for player and NPC bodies.
-- [x] Keep visual meshes separate from physical colliders.
-- [x] Give each collider:
-  - [x] position
-  - [x] radius or half-extents
-  - [x] solidness
-  - [x] contact weight
-  - [x] collision category
-- [x] Add a small skin width, around `0.03m`, to prevent jitter from tiny overlaps.
-- [x] Replace independent X/Z blocking with contact-normal projection.
-- [x] Preserve wall sliding behavior after the resolver change.
-- [x] Add tests for:
-  - [x] sliding along a flat wall
-  - [x] resolving corner contact
-  - [x] ignoring trigger-only colliders
-  - [x] no jitter when starting near but not inside a wall
+- [x] Add a new photographer interactable in `src/interaction/wireInteractables.js`.
+- [x] Reuse the current `InteractionManager` verb system instead of creating a separate interaction pathway.
+- [x] Add a new interaction verb such as `takeSnapshot`.
+- [x] Ensure the prompt only wins when the player is near and facing the intended photographer zone.
+- [x] Keep seating, bartender, and turntable behaviors unchanged.
 
-## Phase 3: Static Collider Cleanup
+## Phase 3: Camera and Capture Flow
 
-- [x] Audit all `MapBuilder` solid objects.
-- [x] Replace exact mesh-derived colliders with simpler gameplay colliders where needed.
-- [x] Add forgiving doorway colliders so doorframes do not snag the player.
-- [x] Treat small props as non-solid unless they meaningfully block movement.
-- [x] Make stool/counter collisions feel passable around edges without letting the player walk through the bar.
-- [x] Add debug helpers for drawing collider outlines in development.
-- [x] Verify these areas manually:
-  - [x] exterior entrance
-  - [x] lobby-to-hall doorway
-  - [x] bar stools
-  - [x] music selector booth
-  - [x] lounge sofas and coffee table
-  - [x] fireplace corner
+- [x] Add a lightweight app-level flow that can temporarily stage a curated snapshot camera view.
+- [x] Prevent movement conflicts while the snapshot is being staged and captured.
+- [x] Capture the rendered image from the existing WebGL canvas without introducing a backend service.
+- [x] Restore the player camera and controls cleanly after capture.
+- [x] Keep the implementation compatible with the current `AppController` and `SceneManager` responsibilities.
 
-## Phase 4: NPC Contact and Personal Space
+## Phase 4: Photographer NPC Feedback
 
-- [x] Register NPC bodies in the shared contact layer.
-- [x] Make player-to-NPC contact reciprocal:
-  - [x] player slows or slides when pushing a heavy NPC
-  - [x] light NPCs yield more easily
-  - [x] seated and staff NPCs resist movement more strongly
-- [x] Replace current independent NPC crowd resolver with the shared solver.
-- [x] Give every NPC a role-specific contact profile:
-  - [x] standing patron
-  - [x] wanderer
-  - [x] seated patron
-  - [x] doorman
-  - [x] bartender
-  - [x] music selector
-- [x] Add return-to-anchor behavior after pushed NPCs drift too far.
-- [x] Add tests for:
-  - [x] two NPCs separating without overshooting
-  - [x] player pushing a light NPC
-  - [x] player not moving seated/staff NPCs too far
-  - [x] pushed NPC returning toward its anchor
+- [x] Reuse the existing photographer flash and reaction system in `src/entities/NPCManager.js`.
+- [x] Add a targeted API so the interaction layer can trigger a specific snapshot reaction on demand.
+- [x] Keep the reaction brief, legible, and in-character with the existing exterior photographer setup.
+- [x] Make sure this behavior does not interfere with the ambient photographer trigger logic already tied to entrance movement.
 
-## Phase 5: NPC Navigation
+## Phase 5: Snapshot Preview UI
 
-- [x] Add a lightweight nav graph for room-to-room movement.
-- [x] Include nodes for:
-  - [x] exterior entrance
-  - [x] lobby
-  - [x] hall center
-  - [x] bar mingle area
-  - [x] lounge mingle area
-  - [x] music booth area
-  - [x] doorway transitions
-- [x] Move wanderers between graph nodes instead of direct straight-line targets.
-- [x] Add local avoidance steering around:
-  - [x] player
-  - [x] other NPCs
-  - [x] solid furniture
-  - [x] doorway bottlenecks
-- [x] Keep each NPC within a home area unless explicitly transitioning.
-- [x] Add tests for:
-  - [x] path selection between mingle spots
-  - [x] no path through solid furniture
-  - [x] avoidance when another NPC blocks the route
-  - [x] fallback behavior when a path is temporarily blocked
+- [x] Add a preview overlay to `src/ui/UIManager.js` for showing the captured image.
+- [x] Style the preview like a lounge keepsake or postcard rather than a debug modal.
+- [x] Include at least:
+  - [x] dismiss action
+  - [x] save/download action
+- [x] Make pointer-lock recovery predictable after the preview is closed.
+- [x] Keep the overlay testable with the current UI manager patterns.
 
-## Phase 6: NPC Reactions and Social Behavior
+## Phase 6: Data and Browser Behavior
 
-- [x] Replace pure distance-based looking/waving with field-of-view checks.
-- [x] Add cooldowns so NPCs do not all react at once.
-- [x] Give reaction weights by role and personality.
-- [x] Keep doorman, bartender, seated patrons, and selector behavior distinct.
-- [x] Add subtle idle variety without changing the core cozy tone.
-- [x] Add tests for:
-  - [x] NPC looks at player only inside field-of-view or close range
-  - [x] wave cooldown prevents repeated spam
-  - [x] staff NPCs favor work animations over social reactions
+- [x] Keep all capture and preview behavior client-side.
+- [x] Use browser-native image export behavior such as `canvas.toBlob()` or equivalent.
+- [x] Avoid adding persistence, accounts, or cloud storage.
+- [x] Decide whether preview state should store:
+  - [x] image blob URL
+  - [x] capture metadata such as title or timestamp
+- [x] Clean up temporary object URLs on dismissal/dispose.
 
-## Phase 7: Determinism and QA
+## Phase 7: Tests
 
-- [x] Add a seeded random helper for NPC spawning and animation phase setup.
-- [x] Use deterministic seeds for visual QA scripts.
-- [x] Keep normal gameplay varied when no QA seed is provided.
-- [x] Add screenshots or tour checkpoints for collision-heavy locations.
-- [x] Run verification:
-  - [x] `npm run lint`
-  - [x] `npm run test`
-  - [x] `npm run build`
-  - [x] `npm run qa:screenshots`
+- [x] Add `InteractionManager` tests for:
+  - [x] photographer prompt selection
+  - [x] triggering the snapshot verb
+  - [x] preserving existing interaction priority behavior
+- [x] Add `UIManager` tests for:
+  - [x] showing and dismissing the preview
+  - [x] preserving timer and cleanup behavior
+- [x] Add focused `NPCManager` tests for:
+  - [x] explicit photographer reaction triggering
+  - [x] coexistence with existing ambient flash behavior
+- [x] Add focused controller or scene tests where practical for camera staging / restoration logic.
 
 ## Implementation Order
 
-- [x] Start with movement constants and tests.
-- [x] Add the shared contact layer behind the existing player controller.
-- [x] Migrate player static collisions.
-- [x] Tune static colliders in the map.
-- [x] Register NPCs in the shared contact layer.
-- [x] Replace NPC crowding and player-push logic.
-- [x] Add navigation only after contact behavior is stable.
-- [x] Add richer NPC reactions last.
-- [x] Finish with visual QA and tuning passes.
+- [x] Start by defining the first photographer interaction zone and the single curated snapshot composition.
+- [x] Add the new interaction verb and dispatch flow next.
+- [x] Add the NPC reaction hook and camera staging behavior.
+- [x] Add the preview overlay and local save action after capture works.
+- [x] Finish with tests, pointer-lock polish, and UX tuning.
 
 ## Out of Scope
 
-- [x] Do not replace Three.js or the existing manager architecture.
-- [x] Do not rewrite the full map layout.
-- [x] Do not add a heavyweight physics engine unless the lightweight contact layer proves insufficient.
-- [x] Do not change the cozy lounge art direction or room identity.
+- [x] Do not add backend upload, galleries, accounts, or social sharing integrations.
+- [x] Do not build a multi-pose photo studio in the first slice.
+- [x] Do not introduce a general-purpose photo mode with free camera controls.
+- [x] Do not replace the current manager architecture.
+- [x] Do not expand the feature into room-wide collectibles or progression systems yet.

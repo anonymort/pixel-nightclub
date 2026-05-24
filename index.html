@@ -12,6 +12,12 @@
       content="Explore a warm and cozy, low-poly, pixel-3D mountain lodge and botanist bar with organic procedural audio, ambient candlelights, and fireplace-warmed voxel visitors."
     />
 
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400..900&family=Lora:ital,wght@0,400..700;1,400..700&family=Outfit:wght@100..900&family=Press+Start+2P&display=swap"
+    />
     <link rel="stylesheet" href="./src/style.css" />
   </head>
   <body>
@@ -104,6 +110,22 @@
 
       <!-- Contextual interact prompt (shows when near a stool, armchair, or the bartender) -->
       <div id="interact-prompt"></div>
+
+      <div id="snapshot-overlay" class="snapshot-overlay">
+        <div class="snapshot-card">
+          <div class="snapshot-frame">
+            <img id="snapshot-image" alt="Souvenir snapshot preview" />
+          </div>
+          <div class="snapshot-copy">
+            <h3 id="snapshot-title">Tonight at Hearthside</h3>
+            <p id="snapshot-meta">Front walk keepsake</p>
+          </div>
+          <div class="snapshot-actions">
+            <button id="snapshot-save" type="button">Save photo</button>
+            <button id="snapshot-close" type="button">Back to the lounge</button>
+          </div>
+        </div>
+      </div>
 
       <!-- Footer Info and Equalizer -->
       <div class="hud-footer">

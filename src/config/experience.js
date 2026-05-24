@@ -35,6 +35,122 @@ export const APP_BRAND = {
   consoleReadyMessage: 'Hearthside Lounge initialized.',
 };
 
+export const INTERACTION_COPY = {
+  moodSelectorLabel: 'Choose the vibe',
+  nowSpinningPrefix: 'Now spinning:',
+  souvenirSnapshotLabel: 'Take a souvenir photo',
+};
+
+export const SOUVENIR_SNAPSHOT_COPY = {
+  title: 'Tonight at Hearthside',
+  loadingPrompt: 'Hold still for the flash',
+  meta: 'Front walk keepsake',
+  saveAction: 'Save photo',
+  dismissAction: 'Back to the lounge',
+  fileName: 'hearthside-lounge-souvenir.png',
+};
+
+export const SOUVENIR_SNAPSHOT_SHOT = {
+  position: { x: -10.6, y: 2.1, z: -6.7 },
+  target: { x: -5.7, y: 1.85, z: -2.1 },
+};
+
+export const AUDIO_MOODS = [
+  {
+    key: 'fireside-jazz',
+    name: 'Fireside Jazz',
+    bpm: 80,
+    bassPattern: [
+      130.81 / 4,
+      0,
+      130.81 / 4,
+      196.0 / 4,
+      155.56 / 4,
+      0,
+      155.56 / 4,
+      233.08 / 4,
+      196.0 / 4,
+      0,
+      196.0 / 4,
+      293.66 / 4,
+      174.61 / 4,
+      0,
+      174.61 / 4,
+      220.0 / 4,
+    ],
+    bassVolume: 0.25,
+    percussion: { offbeat: 0.16, tick: 0.04 },
+    lead: {
+      chordScale: 1,
+      topNoteScale: 1,
+      fillerScale: 1,
+      fillerNotes: [155.56, 196.0, 233.08, 293.66],
+    },
+  },
+  {
+    key: 'late-night-hush',
+    name: 'Late-Night Hush',
+    bpm: 72,
+    bassPattern: [
+      130.81 / 4,
+      0,
+      0,
+      196.0 / 4,
+      155.56 / 4,
+      0,
+      0,
+      233.08 / 4,
+      196.0 / 4,
+      0,
+      0,
+      293.66 / 4,
+      174.61 / 4,
+      0,
+      0,
+      220.0 / 4,
+    ],
+    bassVolume: 0.18,
+    percussion: { offbeat: 0.1, tick: 0.02 },
+    lead: {
+      chordScale: 0.72,
+      topNoteScale: 0.78,
+      fillerScale: 0.55,
+      fillerNotes: [155.56, 174.61, 196.0, 233.08],
+    },
+  },
+  {
+    key: 'lively-bar-set',
+    name: 'Lively Bar Set',
+    bpm: 92,
+    bassPattern: [
+      130.81 / 4,
+      0,
+      155.56 / 4,
+      196.0 / 4,
+      155.56 / 4,
+      174.61 / 4,
+      196.0 / 4,
+      233.08 / 4,
+      196.0 / 4,
+      220.0 / 4,
+      233.08 / 4,
+      293.66 / 4,
+      174.61 / 4,
+      196.0 / 4,
+      220.0 / 4,
+      293.66 / 4,
+    ],
+    bassVolume: 0.31,
+    percussion: { offbeat: 0.22, tick: 0.06 },
+    lead: {
+      chordScale: 1.12,
+      topNoteScale: 1.1,
+      fillerScale: 1.2,
+      fillerNotes: [196.0, 233.08, 293.66, 349.23],
+    },
+  },
+];
+
 export const VISUAL_QA_BASE_URL = getEnv('VISUAL_QA_BASE_URL') || DEFAULT_VISUAL_QA_BASE_URL;
 
 function hashSeed(seed) {

@@ -31,11 +31,16 @@ function createAudio() {
   return {
     acousticBias: { cutoff: 1, volume: 1 },
     playChime: vi.fn(),
+    cycleMood: vi.fn(() => ({ key: 'late-night-hush', name: 'Late-Night Hush' })),
   };
 }
 
 function createNpc() {
-  return { triggerBartenderFlourish: vi.fn() };
+  return {
+    triggerBartenderFlourish: vi.fn(),
+    triggerSelectorFlourish: vi.fn(),
+    triggerPhotographerSnapshot: vi.fn(),
+  };
 }
 
 function createUi() {
@@ -177,5 +182,58 @@ describe('InteractionManager order dispatch', () => {
     }
     const banners = ui.showFloatingPrompt.mock.calls.map((c) => c[0]);
     expect(banners).toEqual(['WHISKEY, NEAT', 'OLD FASHIONED', 'HOT TODDY', 'GINGER FIZZ']);
+  });
+});
+
+describe('InteractionManager music selector dispatch', () => {
+  it('cycles the booth mood, shows a banner, and triggers selector feedback', () => {
+    const { im, controls, audio, npc, ui } = makeIM();
+    im.registerInteractable({
+      id: 'turntable',
+      position: { x: 0, z: -1.0 },
+      range: 1.6,
+      verb: 'selectMood',
+      label: 'Choose the vibe',
+    });
+    im.update(0.016);
+
+    expect(im.getActivePrompt()).toEqual({ label: 'Choose the vibe', key: 'E' });
+
+    controls.interactQueued = true;
+    im.update(0.016);
+
+    expect(audio.cycleMood).toHaveBeenCalledTimes(1);
+    expect(ui.showFloatingPrompt).toHaveBeenCalledTimes(1);
+    expect(ui.showFloatingPrompt.mock.calls[0][0]).toContain('Late-Night Hush');
+    expect(npc.triggerSelectorFlourish).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('InteractionManager souvenir snapshot dispatch', () => {
+  it('triggers the photographer prompt, snapshot flow, and photographer flash', async () => {
+    const onTakeSnapshot = vi.fn(async () => ({
+      title: 'Tonight at Hearthside',
+      fileName: 'hearthside-souvenir.png',
+    }));
+    const { im, controls, audio, npc, ui } = makeIM();
+    im.onTakeSnapshot = onTakeSnapshot;
+    im.registerInteractable({
+      id: 'photographer-snapshot',
+      position: { x: 0, z: -1.0 },
+      range: 1.8,
+      verb: 'takeSnapshot',
+      label: 'Take a souvenir photo',
+    });
+    im.update(0.016);
+
+    expect(im.getActivePrompt()).toEqual({ label: 'Take a souvenir photo', key: 'E' });
+
+    controls.interactQueued = true;
+    await im.update(0.016);
+
+    expect(onTakeSnapshot).toHaveBeenCalledTimes(1);
+    expect(audio.playChime).toHaveBeenCalledTimes(1);
+    expect(ui.showFloatingPrompt).toHaveBeenCalledWith('Tonight at Hearthside', 2600);
+    expect(npc.triggerPhotographerSnapshot).toHaveBeenCalledTimes(1);
   });
 });

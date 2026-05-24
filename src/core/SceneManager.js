@@ -47,6 +47,7 @@ export class SceneManager {
     }
 
     this.updatables = []; // List of objects requiring frame-by-frame updates
+    this._targetFogColor = new THREE.Color();
 
     this._initScene();
     this._initCamera();
@@ -247,6 +248,11 @@ export class SceneManager {
     }
   }
 
+  renderFrame(deltaTime = 0.016) {
+    this._updateDynamicAtmosphere(deltaTime);
+    this.renderer.render(this.scene, this.camera);
+  }
+
   /**
    * Renders a single frame of the 3D scene, runs registered updatables, and manages dynamic sky/fog transitions.
    * @param {number} deltaTime - Time elapsed since the last frame (in seconds).
@@ -255,18 +261,21 @@ export class SceneManager {
     this.performanceManager?.beginFrame(deltaTime);
 
     // Run updates on all active system components (controls, light rigs, NPCs, passing camera position)
-    for (let i = 0; i < this.updatables.length; i++) {
-      const updatable = this.updatables[i];
-      const startedAt = performance.now();
-      updatable.update(deltaTime, this.camera.position);
-      this.performanceManager?.recordUpdate(
-        updatable.performanceLabel || updatable.constructor?.name || `updatable-${i}`,
-        performance.now() - startedAt
-      );
+    if (this.performanceManager?.enabled) {
+      for (let i = 0; i < this.updatables.length; i++) {
+        const updatable = this.updatables[i];
+        const startedAt = performance.now();
+        updatable.update(deltaTime, this.camera.position);
+        this.performanceManager.recordUpdate(
+          updatable.performanceLabel || updatable.constructor?.name || `updatable-${i}`,
+          performance.now() - startedAt
+        );
+      }
+    } else {
+      for (let i = 0; i < this.updatables.length; i++) {
+        this.updatables[i].update(deltaTime, this.camera.position);
+      }
     }
-
-    // Smoothly transition environment sky and fog between dusky golden-hour sunset and smoky lounge darkness
-    this._updateDynamicAtmosphere(deltaTime);
 
     // Update drifting sunset clouds
     if (this.clouds) {
@@ -284,7 +293,7 @@ export class SceneManager {
     }
 
     // Render WebGL Viewport
-    this.renderer.render(this.scene, this.camera);
+    this.renderFrame(deltaTime);
     this.performanceManager?.endFrame();
   }
 
@@ -295,7 +304,7 @@ export class SceneManager {
     if (!this.camera || !this.scene.fog) return;
 
     const x = this.camera.position.x;
-    const targetColor = new THREE.Color(0x0a0807); // Default deep interior background/fog
+    const targetColor = this._targetFogColor.setHex(0x0a0807); // Default deep interior background/fog
     let targetDensity = 0.028;
 
     if (x < -4.8) {
